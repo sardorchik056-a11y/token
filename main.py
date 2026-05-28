@@ -43,9 +43,8 @@ def e(key):
 
 def eb(key, label):
     """Возвращает текст кнопки с кастомным эмодзи"""
-    return f"⭐ {label}"
     # После того как поставишь свои ID — раскомментируй строку ниже и удали строку выше:
-    # return f"<tg-emoji emoji-id=\"{E[key]}\">⭐</tg-emoji> {label}"
+           f"<tg-emoji emoji-id=\"{E[key]}\">⭐</tg-emoji> {label}"
 
 # ==================== БД ====================
 def load_users():
