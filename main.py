@@ -523,7 +523,7 @@ def confirm_buy(call):
             eb("cancel", "Отмена", callback_data="back_to_menu")
         )
         bot.edit_message_text(
-            f'<b><tg-emoji emoji-id=\"5210952531676504517">⭐</tg-emoji>Недостаточно средств!\n\n<tg-emoji emoji-id=\"5449683594425410231">⭐</tg-emoji>Нужно: {total_price}$\n<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>У вас: {user_balance}$'</b>,
+            f'<b><tg-emoji emoji-id=\"5210952531676504517">⭐</tg-emoji>Недостаточно средств!\n\n<tg-emoji emoji-id=\"5449683594425410231">⭐</tg-emoji>Нужно: {total_price}$\n<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>У вас: {user_balance}$</b>',
             chat_id, msg_id, reply_markup=markup
         , parse_mode="HTML")
         return
