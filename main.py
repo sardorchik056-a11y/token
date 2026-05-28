@@ -369,6 +369,8 @@ def buy_token(call):
     if is_user_banned(user_id):
         return
 
+    bot.clear_step_handler_by_chat_id(call.message.chat.id)
+
     if not is_subscribed_to_all(user_id):
         bot.answer_callback_query(call.id, "Сначала подпишись на канал!", show_alert=True)
         send_subscription_message(call.message.chat.id)
@@ -576,6 +578,8 @@ def check_balance(call):
     if is_user_banned(user_id):
         return
 
+    bot.clear_step_handler_by_chat_id(call.message.chat.id)
+
     users = load_users()
     user = users.get(str(user_id), {})
     balance = user.get("balance", 0)
@@ -604,6 +608,8 @@ def refill_balance(call):
     user_id = call.from_user.id
     if is_user_banned(user_id):
         return
+
+    bot.clear_step_handler_by_chat_id(call.message.chat.id)
 
     admin_db = load_admin_db()
     min_amount = admin_db.get("product_price", 5)
@@ -717,6 +723,7 @@ def back_to_menu(call):
     user_id = call.from_user.id
     if is_user_banned(user_id):
         return
+    bot.clear_step_handler_by_chat_id(call.message.chat.id)
     show_main_menu(call.message.chat.id, user_id, call.message.message_id)
 
 # ==================== АДМИНКА ====================
