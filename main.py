@@ -720,6 +720,9 @@ def admin_panel(message):
         return
 
     markup = types.InlineKeyboardMarkup(row_width=1)
+    users = load_users()
+    total_users = len(users)
+
     markup.add(
         types.InlineKeyboardButton("Управление каналами", callback_data="admin_channels"),
         types.InlineKeyboardButton("Выдать баланс", callback_data="admin_give_balance"),
@@ -727,7 +730,8 @@ def admin_panel(message):
         types.InlineKeyboardButton("Изменить остаток", callback_data="admin_stock"),
         types.InlineKeyboardButton("Изменить цену", callback_data="admin_price"),
         types.InlineKeyboardButton("Мин количество", callback_data="admin_min_qty"),
-        types.InlineKeyboardButton("Изменить контент", callback_data="admin_content")
+        types.InlineKeyboardButton("Изменить контент", callback_data="admin_content"),
+        types.InlineKeyboardButton(f"📢 Рассылка ({total_users} юзеров)", callback_data="admin_broadcast")
     )
 
     bot.send_message(message.chat.id, "Админ Панель", reply_markup=markup, parse_mode="HTML")
@@ -1040,6 +1044,188 @@ def process_content(message):
         f"Добавлено {len(new_lines)} шт.\nВсего в боте: {len(content_list)} шт.",
         parse_mode="HTML"
     )
+
+# ==================== АДМИН: РАССЫЛКА ====================
+@bot.callback_query_handler(func=lambda call: call.data == "admin_broadcast")
+def admin_broadcast_menu(call):
+    user_id = call.from_user.id
+    if not is_admin(user_id):
+        return
+
+    users = load_users()
+    total_users = len(users)
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("✉️ Написать текст", callback_data="broadcast_text"),
+        types.InlineKeyboardButton("🖼 Фото + текст", callback_data="broadcast_photo"),
+        types.InlineKeyboardButton("Назад", callback_data="admin_back")
+    )
+
+    bot.edit_message_text(
+        f"<b>📢 Рассылка</b>\n\n"
+        f"Пользователей в базе: <b>{total_users}</b>\n\n"
+        f"Выбери тип рассылки:",
+        call.message.chat.id, call.message.message_id,
+        reply_markup=markup, parse_mode="HTML"
+    )
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "broadcast_text")
+def broadcast_text_start(call):
+    user_id = call.from_user.id
+    if not is_admin(user_id):
+        return
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("Отмена", callback_data="admin_broadcast"))
+
+    msg = bot.edit_message_text(
+        "<b>📢 Рассылка — Текст</b>\n\n"
+        "Напиши текст для рассылки.\n"
+        "Поддерживается HTML-разметка (<b>жирный</b>, <i>курсив</i>, <code>код</code>):",
+        call.message.chat.id, call.message.message_id,
+        reply_markup=markup, parse_mode="HTML"
+    )
+    bot.register_next_step_handler(msg, broadcast_text_preview)
+
+
+def broadcast_text_preview(message):
+    if not is_admin(message.from_user.id):
+        return
+
+    text = message.text
+    if not text:
+        bot.send_message(message.chat.id, "Текст не может быть пустым!", parse_mode="HTML")
+        return
+
+    users = load_users()
+    total_users = len(users)
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("✅ Разослать", callback_data=f"broadcast_confirm_text"),
+        types.InlineKeyboardButton("❌ Отмена", callback_data="admin_broadcast")
+    )
+
+    # Сохраняем текст во временное хранилище
+    admin_db = load_admin_db()
+    admin_db["_broadcast_pending"] = {"type": "text", "text": text}
+    save_admin_db(admin_db)
+
+    bot.send_message(
+        message.chat.id,
+        f"<b>Предпросмотр рассылки:</b>\n\n{text}\n\n"
+        f"——————————————\n"
+        f"Будет отправлено: <b>{total_users}</b> пользователям",
+        reply_markup=markup, parse_mode="HTML"
+    )
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "broadcast_photo")
+def broadcast_photo_start(call):
+    user_id = call.from_user.id
+    if not is_admin(user_id):
+        return
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("Отмена", callback_data="admin_broadcast"))
+
+    msg = bot.edit_message_text(
+        "<b>📢 Рассылка — Фото + текст</b>\n\n"
+        "Отправь фото с подписью (или без):",
+        call.message.chat.id, call.message.message_id,
+        reply_markup=markup, parse_mode="HTML"
+    )
+    bot.register_next_step_handler(msg, broadcast_photo_preview)
+
+
+def broadcast_photo_preview(message):
+    if not is_admin(message.from_user.id):
+        return
+
+    if not message.photo:
+        bot.send_message(message.chat.id, "Нужно отправить фото! Попробуй снова через /admin", parse_mode="HTML")
+        return
+
+    file_id = message.photo[-1].file_id
+    caption = message.caption or ""
+
+    users = load_users()
+    total_users = len(users)
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("✅ Разослать", callback_data="broadcast_confirm_photo"),
+        types.InlineKeyboardButton("❌ Отмена", callback_data="admin_broadcast")
+    )
+
+    admin_db = load_admin_db()
+    admin_db["_broadcast_pending"] = {"type": "photo", "file_id": file_id, "caption": caption}
+    save_admin_db(admin_db)
+
+    bot.send_photo(
+        message.chat.id,
+        file_id,
+        caption=f"<b>Предпросмотр рассылки:</b>\n\n{caption}\n\n"
+                f"——————————————\n"
+                f"Будет отправлено: <b>{total_users}</b> пользователям",
+        reply_markup=markup, parse_mode="HTML"
+    )
+
+
+@bot.callback_query_handler(func=lambda call: call.data in ["broadcast_confirm_text", "broadcast_confirm_photo"])
+def broadcast_confirm(call):
+    user_id = call.from_user.id
+    if not is_admin(user_id):
+        return
+
+    admin_db = load_admin_db()
+    pending = admin_db.get("_broadcast_pending")
+
+    if not pending:
+        bot.answer_callback_query(call.id, "Нет данных для рассылки!", show_alert=True)
+        return
+
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    status_msg = bot.send_message(call.message.chat.id, "📢 Рассылка запущена...", parse_mode="HTML")
+
+    def do_broadcast():
+        users = load_users()
+        sent = 0
+        failed = 0
+
+        for uid_str in users:
+            uid = int(uid_str)
+            try:
+                if pending["type"] == "text":
+                    bot.send_message(uid, pending["text"], parse_mode="HTML")
+                elif pending["type"] == "photo":
+                    bot.send_photo(uid, pending["file_id"], caption=pending["caption"], parse_mode="HTML")
+                sent += 1
+            except Exception:
+                failed += 1
+
+        # Очищаем pending
+        db = load_admin_db()
+        db.pop("_broadcast_pending", None)
+        save_admin_db(db)
+
+        try:
+            bot.edit_message_text(
+                f"<b>✅ Рассылка завершена!</b>\n\n"
+                f"Отправлено: <b>{sent}</b>\n"
+                f"Не доставлено (заблокировали бота): <b>{failed}</b>",
+                call.message.chat.id, status_msg.message_id,
+                parse_mode="HTML"
+            )
+        except:
+            pass
+
+    thread = threading.Thread(target=do_broadcast)
+    thread.daemon = True
+    thread.start()
+
 
 # ==================== ЗАПУСК ====================
 def setup_webhook():
