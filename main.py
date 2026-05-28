@@ -709,9 +709,9 @@ def rules(call):
     markup.add(eb("back", "Назад", callback_data="back_to_menu"))
 
     bot.edit_message_text(
-        '<tg-emoji emoji-id=\"5244961448525848230">⭐</tg-emoji>  Баланс с бота не выводится.\n\n'
+        '<b><tg-emoji emoji-id=\"5244961448525848230">⭐</tg-emoji>  Баланс с бота не выводится.\n\n'
         '<tg-emoji emoji-id=\"5242293676834579345">⭐</tg-emoji>  Гарантия на токены составляет 30 минут после покупки.\n\n'
-        '<tg-emoji emoji-id=\"5242652525647127686">⭐</tg-emoji>  Любая попытка обмануть сервис равносильна блокировке.',
+        '<tg-emoji emoji-id=\"5242652525647127686">⭐</tg-emoji>  Любая попытка обмануть сервис равносильна блокировке.</b>',
         call.message.chat.id,
         call.message.message_id,
         reply_markup=markup
