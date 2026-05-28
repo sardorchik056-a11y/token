@@ -268,7 +268,7 @@ def send_subscription_message(chat_id):
 
     bot.send_message(
         chat_id,
-        "Для доступа в бот нужно подписаться на канал\n\nПосле подписки нажми кнопку Подписался",
+        '<b><tg-emoji emoji-id=\"5420323339723881652">⭐</tg-emoji>Для доступа в бот нужно подписаться на канал\n\nПосле подписки нажми кнопку Подписался<tg-emoji emoji-id=\"5206607081334906820">⭐</tg-emoji></b>',
         reply_markup=markup
     , parse_mode="HTML")
 
@@ -523,7 +523,7 @@ def confirm_buy(call):
             eb("cancel", "Отмена", callback_data="back_to_menu")
         )
         bot.edit_message_text(
-            f"Недостаточно средств!\n\nНужно: {total_price}$\nУ вас: {user_balance}$",
+            f'<b><tg-emoji emoji-id=\"5210952531676504517">⭐</tg-emoji>Недостаточно средств!\n\n<tg-emoji emoji-id=\"5449683594425410231">⭐</tg-emoji>Нужно: {total_price}$\n<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>У вас: {user_balance}$'</b>,
             chat_id, msg_id, reply_markup=markup
         , parse_mode="HTML")
         return
@@ -539,7 +539,7 @@ def confirm_buy(call):
             eb("back", "Назад", callback_data="back_to_menu")
         )
         bot.edit_message_text(
-            f"Ошибка! Контент закончился.\n\nОбратитесь в поддержку.",
+            f"<b>Ошибка! Контент закончился.\n\nОбратитесь в поддержку.</b>",
             chat_id, msg_id, reply_markup=markup
         , parse_mode="HTML")
         return
@@ -612,7 +612,7 @@ def refill_balance(call):
     markup.add(eb("back", "Назад", callback_data="check_balance"))
 
     msg = bot.edit_message_text(
-        f"Пополнение баланса\n\nВведите сумму от {min_amount}$:",
+        f'<b><tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>Пополнение баланса\n\n<tg-emoji emoji-id=\"5307843983102204243">⭐</tg-emoji>Введите сумму от {min_amount}$:</b>',
         call.message.chat.id,
         call.message.message_id,
         reply_markup=markup
