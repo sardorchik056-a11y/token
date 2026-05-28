@@ -8,7 +8,7 @@ import threading
 from flask import Flask, request, abort
 
 # ==================== КОНФИГ ====================
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8796598287:AAFK9lvJ_T3oVC4Xr3VH0U_ArmPmY4CskSs")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8492517983:AAFyp_KsZyIVBaYqY2CRbjKYHCky3WuwxUQ")
 ADMIN_IDS = [8118184388]
 CRYPTOBOT_TOKEN = os.environ.get("CRYPTOBOT_TOKEN", "582363:AALEf7JOugnrQyrkMHzH5UrO7pdOjjYnTQy")
 SUPPORT_LINK = "https://t.me/your_admin_username"  # <-- замени на юз поддержки
