@@ -303,12 +303,11 @@ def show_main_menu(chat_id, user_id, message_id=None):
     username = user.get("username", "Unknown")
 
     text = (
-        "Kretros Shop\n"
-        "\n"
+        "<b>Kretros Shop</b>\n"
         "——————————————\n"
-        f"|User: @{username}!\n"
-        f"|ID: {user_id}\n"
-        f"|Баланс: {balance}$\n"
+        f'|<b><tg-emoji emoji-id=\"5906581476639513176">⭐</tg-emoji>User: @{username}!\n'
+        f'|<tg-emoji emoji-id=\"5445353829304387411">⭐</tg-emoji>ID: {user_id}\n'
+        f'|<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>Баланс: {balance}$</b>\n'
         "——————————————"
     )
 
@@ -384,13 +383,13 @@ def buy_token(call):
     markup.add(eb("back", "Назад", callback_data="back_to_menu"))
 
     msg = bot.edit_message_text(
-        f"TOKEN\n"
+        f'<tg-emoji emoji-id=\"5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
         f"——————————————\n"
-        f"Ценник: {price}$\n"
-        f"Мин покупка: {min_purchase} шт\n"
-        f"Кол-во в боте: {tokens_left} шт\n"
+        f'<b>Ценник: {price}<tg-emoji emoji-id=\"5197434882321567830">⭐</tg-emoji>\n'
+        f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id=\"5397916757333654639">⭐</tg-emoji>\n'
+        f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id=\"5386367538735104399">⭐</tg-emoji></b>\n'
         f"——————————————\n\n"
-        f"Введите количество токенов:",
+        f'<b>Введите количество токенов:</b>',
         call.message.chat.id,
         call.message.message_id,
         reply_markup=markup
@@ -422,13 +421,13 @@ def process_quantity(message, msg_id):
         markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(eb("back", "Назад", callback_data="back_to_menu"))
         msg = bot.edit_message_text(
-            f"TOKEN\n"
+            f'<tg-emoji emoji-id=\"5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
             f"——————————————\n"
-            f"Ценник: {admin_db['product_price']}$\n"
-            f"Мин покупка: {admin_db['min_purchase']} шт\n"
-            f"Кол-во в боте: {admin_db['tokens_in_bot']} шт\n"
+            f'<b>Ценник: {price}<tg-emoji emoji-id=\"5197434882321567830">⭐</tg-emoji>\n'
+            f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id=\"5397916757333654639">⭐</tg-emoji>\n'
+            f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id=\"5386367538735104399">⭐</tg-emoji></b>\n'
             f"——————————————\n\n"
-            f"Введите число! Попробуй ещё раз:",
+            f'<b>Введите число!</b>',
             chat_id, msg_id, reply_markup=markup
         )
         bot.register_next_step_handler(msg, process_quantity, msg_id)
@@ -442,13 +441,13 @@ def process_quantity(message, msg_id):
         markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(eb("back", "Назад", callback_data="back_to_menu"))
         msg = bot.edit_message_text(
-            f"TOKEN\n"
+            f'<tg-emoji emoji-id=\"5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
             f"——————————————\n"
-            f"Ценник: {price}$\n"
-            f"Мин покупка: {min_purchase} шт\n"
-            f"Кол-во в боте: {tokens_left} шт\n"
+            f'<b>Ценник: {price}<tg-emoji emoji-id=\"5197434882321567830">⭐</tg-emoji>\n'
+            f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id=\"5397916757333654639">⭐</tg-emoji>\n'
+            f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id=\"5386367538735104399">⭐</tg-emoji></b>\n'
             f"——————————————\n\n"
-            f"Минимум {min_purchase} шт! Введи заново:",
+            f'<b>Минимум {min_purchase}!</b>',
             chat_id, msg_id, reply_markup=markup
         )
         bot.register_next_step_handler(msg, process_quantity, msg_id)
@@ -458,13 +457,13 @@ def process_quantity(message, msg_id):
         markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(eb("back", "Назад", callback_data="back_to_menu"))
         msg = bot.edit_message_text(
-            f"TOKEN\n"
+            f'<tg-emoji emoji-id=\"5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
             f"——————————————\n"
-            f"Ценник: {price}$\n"
-            f"Мин покупка: {min_purchase} шт\n"
-            f"Кол-во в боте: {tokens_left} шт\n"
+            f'<b>Ценник: {price}<tg-emoji emoji-id=\"5197434882321567830">⭐</tg-emoji>\n'
+            f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id=\"5397916757333654639">⭐</tg-emoji>\n'
+            f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id=\"5386367538735104399">⭐</tg-emoji></b>\n'
             f"——————————————\n\n"
-            f"Недостаточно токенов! Доступно: {tokens_left} шт\nВведи другое количество:",
+            f'<b>Недостаточно токенов!</b>',
             chat_id, msg_id, reply_markup=markup
         )
         bot.register_next_step_handler(msg, process_quantity, msg_id)
@@ -482,12 +481,12 @@ def process_quantity(message, msg_id):
     )
 
     bot.edit_message_text(
-        f"Подтверждение\n"
+        f'<tg-emoji emoji-id=\"5206607081334906820">⭐</tg-emoji><b>Подтверждение!</b>\n'
         f"——————————————\n"
-        f"Количество: {quantity} шт\n"
-        f"Цена за шт: {price}$\n"
-        f"Итого: {total_price}$\n"
-        f"Ваш баланс: {user_balance}$\n"
+        f'<b><tg-emoji emoji-id=\"5226513232549664618">⭐</tg-emoji>Количество: {quantity} шт\n'
+        f'<tg-emoji emoji-id=\"5197434882321567830">⭐</tg-emoji>Цена за шт: {price}$\n'
+        f'<tg-emoji emoji-id=\"5201691993775818138">⭐</tg-emoji>Итого: {total_price}$\n'
+        f'<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>баланс: {user_balance}$</b>\n'
         f"——————————————",
         chat_id, msg_id, reply_markup=markup
     )
