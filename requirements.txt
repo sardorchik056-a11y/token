@@ -1,4 +1,4 @@
-pyTelegramBotAPI==4.18.0
+pyTelegramBotAPI==4.33.0
 flask==3.0.3
 requests==2.32.3
 gunicorn==22.0.0
