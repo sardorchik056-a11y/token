@@ -41,9 +41,13 @@ def e(key):
     """Возвращает кастомный эмодзи тег для текста сообщений"""
     return f"<tg-emoji emoji-id=\"{E[key]}\">⭐</tg-emoji>"
 
-def eb(key, label):
-    """Возвращает текст кнопки с кастомным эмодзи"""
-    return f"<tg-emoji emoji-id=\"{E[key]}\">⭐</tg-emoji> {label}"
+def eb(key, label, **kwargs):
+    """InlineKeyboardButton с кастомным эмодзи через icon_custom_emoji_id"""
+    return types.InlineKeyboardButton(
+        text=label,
+        icon_custom_emoji_id=E[key],
+        **kwargs
+    )
 
 # ==================== БД ====================
 def load_users():
@@ -188,7 +192,7 @@ def monitor_invoice(invoice_id, user_id, chat_id, message_id, amount_usd):
         elif status_info["status"] == "expired":
             try:
                 markup = types.InlineKeyboardMarkup(row_width=1)
-                markup.add(types.InlineKeyboardButton(eb("back", "Назад"), callback_data="check_balance"))
+                markup.add(eb("back", "Назад", callback_data="check_balance"))
                 bot.edit_message_text(
                     "Инвойс истек! Время для оплаты истекло.",
                     chat_id, message_id, reply_markup=markup
@@ -259,8 +263,8 @@ def send_subscription_message(chat_id):
     for i, channel in enumerate(channels, 1):
         url = get_channel_invite_url(channel)
         if url:
-            markup.add(types.InlineKeyboardButton(eb("channel", f"{i} Канал"), url=url))
-    markup.add(types.InlineKeyboardButton(eb("check", "Подписался"), callback_data="check_subscription"))
+            markup.add(eb("channel", f"{i} Канал", url=url))
+    markup.add(eb("check", "Подписался", callback_data="check_subscription"))
 
     bot.send_message(
         chat_id,
@@ -310,14 +314,14 @@ def show_main_menu(chat_id, user_id, message_id=None):
 
     markup = types.InlineKeyboardMarkup()
     markup.add(
-        types.InlineKeyboardButton(eb("buy", "Купить Token"), callback_data="buy_token")
+        eb("buy", "Купить Token", callback_data="buy_token")
     )
     markup.add(
-        types.InlineKeyboardButton(eb("balance", "Баланс"), callback_data="check_balance"),
-        types.InlineKeyboardButton(eb("rules", "Правила"), callback_data="rules")
+        eb("balance", "Баланс", callback_data="check_balance"),
+        eb("rules", "Правила", callback_data="rules")
     )
     markup.add(
-        types.InlineKeyboardButton(eb("support", "Поддержка"), url=SUPPORT_LINK)
+        eb("support", "Поддержка", url=SUPPORT_LINK)
     )
 
     if message_id:
@@ -377,7 +381,7 @@ def buy_token(call):
     tokens_left = admin_db["tokens_in_bot"]
 
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton(eb("back", "Назад"), callback_data="back_to_menu"))
+    markup.add(eb("back", "Назад", callback_data="back_to_menu"))
 
     msg = bot.edit_message_text(
         f"TOKEN\n"
@@ -416,7 +420,7 @@ def process_quantity(message, msg_id):
         quantity = int(text)
     except ValueError:
         markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(types.InlineKeyboardButton(eb("back", "Назад"), callback_data="back_to_menu"))
+        markup.add(eb("back", "Назад", callback_data="back_to_menu"))
         msg = bot.edit_message_text(
             f"TOKEN\n"
             f"——————————————\n"
@@ -436,7 +440,7 @@ def process_quantity(message, msg_id):
 
     if quantity < min_purchase:
         markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(types.InlineKeyboardButton(eb("back", "Назад"), callback_data="back_to_menu"))
+        markup.add(eb("back", "Назад", callback_data="back_to_menu"))
         msg = bot.edit_message_text(
             f"TOKEN\n"
             f"——————————————\n"
@@ -452,7 +456,7 @@ def process_quantity(message, msg_id):
 
     if quantity > tokens_left:
         markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(types.InlineKeyboardButton(eb("back", "Назад"), callback_data="back_to_menu"))
+        markup.add(eb("back", "Назад", callback_data="back_to_menu"))
         msg = bot.edit_message_text(
             f"TOKEN\n"
             f"——————————————\n"
@@ -473,8 +477,8 @@ def process_quantity(message, msg_id):
     # Экран подтверждения
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton(eb("confirm", "Купить"), callback_data=f"confirm_buy_{quantity}"),
-        types.InlineKeyboardButton(eb("cancel", "Отмена"), callback_data="buy_token")
+        eb("confirm", "Купить", callback_data=f"confirm_buy_{quantity}"),
+        eb("cancel", "Отмена", callback_data="buy_token")
     )
 
     bot.edit_message_text(
@@ -516,8 +520,8 @@ def confirm_buy(call):
     if user_balance < total_price:
         markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(
-            types.InlineKeyboardButton(eb("refill", "Пополнить баланс"), callback_data="refill_balance"),
-            types.InlineKeyboardButton(eb("cancel", "Отмена"), callback_data="back_to_menu")
+            eb("refill", "Пополнить баланс", callback_data="refill_balance"),
+            eb("cancel", "Отмена", callback_data="back_to_menu")
         )
         bot.edit_message_text(
             f"Недостаточно средств!\n\nНужно: {total_price}$\nУ вас: {user_balance}$",
@@ -533,7 +537,7 @@ def confirm_buy(call):
     if len(content_list) < quantity:
         markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(
-            types.InlineKeyboardButton(eb("back", "Назад"), callback_data="back_to_menu")
+            eb("back", "Назад", callback_data="back_to_menu")
         )
         bot.edit_message_text(
             f"Ошибка! Контент закончился.\n\nОбратитесь в поддержку.",
@@ -554,7 +558,7 @@ def confirm_buy(call):
     content_text = "\n".join(issued_content)
 
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton(eb("back", "Главное меню"), callback_data="back_to_menu"))
+    markup.add(eb("back", "Главное меню", callback_data="back_to_menu"))
 
     bot.edit_message_text(
         f"Покупка успешна!\n"
@@ -580,8 +584,8 @@ def check_balance(call):
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton(eb("refill", "Пополнить баланс"), callback_data="refill_balance"),
-        types.InlineKeyboardButton(eb("back", "Назад"), callback_data="back_to_menu")
+        eb("refill", "Пополнить баланс", callback_data="refill_balance"),
+        eb("back", "Назад", callback_data="back_to_menu")
     )
 
     bot.edit_message_text(
@@ -606,7 +610,7 @@ def refill_balance(call):
     min_amount = admin_db.get("product_price", 5)
 
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton(eb("back", "Назад"), callback_data="check_balance"))
+    markup.add(eb("back", "Назад", callback_data="check_balance"))
 
     msg = bot.edit_message_text(
         f"Пополнение баланса\n\nВведите сумму от {min_amount}$:",
@@ -638,7 +642,7 @@ def process_refill(message, msg_id):
         amount = float(text)
     except ValueError:
         markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(types.InlineKeyboardButton(eb("back", "Назад"), callback_data="check_balance"))
+        markup.add(eb("back", "Назад", callback_data="check_balance"))
         msg = bot.edit_message_text(
             f"Пополнение баланса\n\nВведи число! Попробуй заново:",
             chat_id, msg_id, reply_markup=markup
@@ -648,7 +652,7 @@ def process_refill(message, msg_id):
 
     if amount < min_amount:
         markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(types.InlineKeyboardButton(eb("back", "Назад"), callback_data="check_balance"))
+        markup.add(eb("back", "Назад", callback_data="check_balance"))
         msg = bot.edit_message_text(
             f"Пополнение баланса\n\nМинимум {min_amount}$! Введи заново:",
             chat_id, msg_id, reply_markup=markup
@@ -660,7 +664,7 @@ def process_refill(message, msg_id):
 
     if not invoice:
         markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(types.InlineKeyboardButton(eb("back", "Назад"), callback_data="check_balance"))
+        markup.add(eb("back", "Назад", callback_data="check_balance"))
         bot.edit_message_text(
             "Ошибка создания инвойса. Попробуй позже.",
             chat_id, msg_id, reply_markup=markup
@@ -673,8 +677,8 @@ def process_refill(message, msg_id):
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton(eb("pay", "Оплатить"), url=invoice['pay_url']),
-        types.InlineKeyboardButton(eb("back", "Назад"), callback_data="check_balance")
+        eb("pay", "Оплатить", url=invoice['pay_url']),
+        eb("back", "Назад", callback_data="check_balance")
     )
 
     msg = bot.edit_message_text(
@@ -697,7 +701,7 @@ def rules(call):
         return
 
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton(eb("back", "Назад"), callback_data="back_to_menu"))
+    markup.add(eb("back", "Назад", callback_data="back_to_menu"))
 
     bot.edit_message_text(
         "1  Баланс с бота не выводится.\n\n"
