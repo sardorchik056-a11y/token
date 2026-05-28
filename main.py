@@ -653,7 +653,7 @@ def process_refill(message, msg_id):
         markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(eb("back", "Назад", callback_data="check_balance"))
         msg = bot.edit_message_text(
-            f"Пополнение баланса\n\nМинимум {min_amount}$! Введи заново:",
+            f'<b><tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>Пополнение баланса\n\nМинимум {min_amount}$! Введи заново:</b>',
             chat_id, msg_id, reply_markup=markup
         , parse_mode="HTML")
         bot.register_next_step_handler(msg, process_refill, msg_id)
@@ -665,7 +665,7 @@ def process_refill(message, msg_id):
         markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(eb("back", "Назад", callback_data="check_balance"))
         bot.edit_message_text(
-            "Ошибка создания инвойса. Попробуй позже.",
+            "<b>Ошибка создания инвойса. Попробуй позже.<b>",
             chat_id, msg_id, reply_markup=markup
         , parse_mode="HTML")
         return
@@ -681,7 +681,7 @@ def process_refill(message, msg_id):
     )
 
     msg = bot.edit_message_text(
-        f"Счет на оплату\n\nСумма: {amount}$\nМетод: CryptoBot (USDT)\n\nОжидаю оплату...",
+        f'<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji><b>Счет на оплату\n\n<tg-emoji emoji-id=\"5224257782013769471">⭐</tg-emoji>Сумма: {amount}$\n<tg-emoji emoji-id=\"5307843983102204243">⭐</tg-emoji>Метод: CryptoBot (USDT)\n\nОжидаю оплату...</b>',
         chat_id, msg_id, reply_markup=markup
     , parse_mode="HTML")
 
@@ -703,9 +703,9 @@ def rules(call):
     markup.add(eb("back", "Назад", callback_data="back_to_menu"))
 
     bot.edit_message_text(
-        "1  Баланс с бота не выводится.\n\n"
-        "2  Гарантия на токены составляет 30 минут после покупки.\n\n"
-        "3  Любая попытка обмануть сервис равносильна блокировке.",
+        '<tg-emoji emoji-id=\"5244961448525848230">⭐</tg-emoji>  Баланс с бота не выводится.\n\n'
+        '<tg-emoji emoji-id=\"5242293676834579345">⭐</tg-emoji>  Гарантия на токены составляет 30 минут после покупки.\n\n'
+        '<tg-emoji emoji-id=\"5242652525647127686">⭐</tg-emoji>  Любая попытка обмануть сервис равносильна блокировке.',
         call.message.chat.id,
         call.message.message_id,
         reply_markup=markup
