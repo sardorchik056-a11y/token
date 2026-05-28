@@ -11,7 +11,7 @@ from flask import Flask, request, abort
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8651673506:AAHUYxGizvWIqUxV7_54PSFWDQZlJtuS6MI")
 ADMIN_IDS = [8118184388, 8676390469]
 CRYPTOBOT_TOKEN = os.environ.get("CRYPTOBOT_TOKEN", "588307:AATu42lIO110AeIYEitkFgoW2s5vsV7a96n")
-SUPPORT_LINK = "@Xeltryx"  # <-- замени на юз поддержки
+SUPPORT_LINK = "https://t.me/Xeltryx"  # <-- замени на юз поддержки
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "mysecrettoken")  # секрет для защиты вебхука
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://token-mhyd.onrender.com")
 DB_FILE = "users_db.json"
