@@ -179,7 +179,7 @@ def monitor_invoice(invoice_id, user_id, chat_id, message_id, amount_usd):
                 bot.edit_message_text(
                     f"Платеж успешно получен!\n\nВыплачено: {amount_usd}$\nБаланс пополнен на {amount_usd}$",
                     chat_id, message_id
-                )
+                , parse_mode="HTML")
             except:
                 pass
             time.sleep(3)
@@ -196,7 +196,7 @@ def monitor_invoice(invoice_id, user_id, chat_id, message_id, amount_usd):
                 bot.edit_message_text(
                     "Инвойс истек! Время для оплаты истекло.",
                     chat_id, message_id, reply_markup=markup
-                )
+                , parse_mode="HTML")
             except:
                 pass
             break
@@ -270,16 +270,16 @@ def send_subscription_message(chat_id):
         chat_id,
         "Для доступа в бот нужно подписаться на канал\n\nПосле подписки нажми кнопку Подписался",
         reply_markup=markup
-    )
+    , parse_mode="HTML")
 
 # ==================== /getfileid ====================
 @bot.message_handler(commands=['getfileid'])
 def getfileid_cmd(message):
     user_id = message.from_user.id
     if not is_admin(user_id):
-        bot.send_message(message.chat.id, "Нет доступа!")
+        bot.send_message(message.chat.id, "Нет доступа!", parse_mode="HTML")
         return
-    msg = bot.send_message(message.chat.id, "Кинь стикер который будет показываться перед меню:")
+    msg = bot.send_message(message.chat.id, "Кинь стикер который будет показываться перед меню:", parse_mode="HTML")
     bot.register_next_step_handler(msg, save_sticker_file_id)
 
 def save_sticker_file_id(message):
@@ -287,13 +287,13 @@ def save_sticker_file_id(message):
     if not is_admin(user_id):
         return
     if not message.sticker:
-        bot.send_message(message.chat.id, "Это не стикер! Попробуй ещё раз — /getfileid")
+        bot.send_message(message.chat.id, "Это не стикер! Попробуй ещё раз — /getfileid", parse_mode="HTML")
         return
     file_id = message.sticker.file_id
     admin_db = load_admin_db()
     admin_db["menu_sticker"] = file_id
     save_admin_db(admin_db)
-    bot.send_message(message.chat.id, f"Стикер сохранён!\nfile_id: {file_id}\n\nТеперь он будет показываться перед главным меню.")
+    bot.send_message(message.chat.id, f"Стикер сохранён!\nfile_id: {file_id}\n\nТеперь он будет показываться перед главным меню.", parse_mode="HTML")
 
 # ==================== ГЛАВНОЕ МЕНЮ ====================
 def show_main_menu(chat_id, user_id, message_id=None):
@@ -324,7 +324,7 @@ def show_main_menu(chat_id, user_id, message_id=None):
     )
 
     if message_id:
-        bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
+        bot.edit_message_text(text, chat_id, message_id, reply_markup=markup, parse_mode="HTML")
     else:
         admin_db = load_admin_db()
         sticker_id = admin_db.get('menu_sticker')
@@ -333,7 +333,7 @@ def show_main_menu(chat_id, user_id, message_id=None):
                 bot.send_sticker(chat_id, sticker_id)
             except:
                 pass
-        bot.send_message(chat_id, text, reply_markup=markup)
+        bot.send_message(chat_id, text, reply_markup=markup, parse_mode="HTML")
 
 # ==================== /start ====================
 @bot.message_handler(commands=['start'])
@@ -393,7 +393,7 @@ def buy_token(call):
         call.message.chat.id,
         call.message.message_id,
         reply_markup=markup
-    )
+    , parse_mode="HTML")
 
     bot.register_next_step_handler(msg, process_quantity, call.message.message_id)
 
@@ -429,7 +429,7 @@ def process_quantity(message, msg_id):
             f"——————————————\n\n"
             f'<b>Введите число!</b>',
             chat_id, msg_id, reply_markup=markup
-        )
+        , parse_mode="HTML")
         bot.register_next_step_handler(msg, process_quantity, msg_id)
         return
 
@@ -449,7 +449,7 @@ def process_quantity(message, msg_id):
             f"——————————————\n\n"
             f'<b>Минимум {min_purchase}!</b>',
             chat_id, msg_id, reply_markup=markup
-        )
+        , parse_mode="HTML")
         bot.register_next_step_handler(msg, process_quantity, msg_id)
         return
 
@@ -465,7 +465,7 @@ def process_quantity(message, msg_id):
             f"——————————————\n\n"
             f'<b>Недостаточно токенов!</b>',
             chat_id, msg_id, reply_markup=markup
-        )
+        , parse_mode="HTML")
         bot.register_next_step_handler(msg, process_quantity, msg_id)
         return
 
@@ -489,7 +489,7 @@ def process_quantity(message, msg_id):
         f'<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>баланс: {user_balance}$</b>\n'
         f"——————————————",
         chat_id, msg_id, reply_markup=markup
-    )
+    , parse_mode="HTML")
 
 # ==================== ПОДТВЕРЖДЕНИЕ ====================
 @bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_buy_"))
@@ -525,7 +525,7 @@ def confirm_buy(call):
         bot.edit_message_text(
             f"Недостаточно средств!\n\nНужно: {total_price}$\nУ вас: {user_balance}$",
             chat_id, msg_id, reply_markup=markup
-        )
+        , parse_mode="HTML")
         return
 
     # Проверяем наличие контента
@@ -541,7 +541,7 @@ def confirm_buy(call):
         bot.edit_message_text(
             f"Ошибка! Контент закончился.\n\nОбратитесь в поддержку.",
             chat_id, msg_id, reply_markup=markup
-        )
+        , parse_mode="HTML")
         return
 
     # Списываем
@@ -567,7 +567,7 @@ def confirm_buy(call):
         f"——————————————\n\n"
         f"{content_text}",
         chat_id, msg_id, reply_markup=markup
-    )
+    , parse_mode="HTML")
 
 # ==================== БАЛАНС ====================
 @bot.callback_query_handler(func=lambda call: call.data == "check_balance")
@@ -596,7 +596,7 @@ def check_balance(call):
         call.message.chat.id,
         call.message.message_id,
         reply_markup=markup
-    )
+    , parse_mode="HTML")
 
 # ==================== ПОПОЛНИТЬ БАЛАНС ====================
 @bot.callback_query_handler(func=lambda call: call.data == "refill_balance")
@@ -616,7 +616,7 @@ def refill_balance(call):
         call.message.chat.id,
         call.message.message_id,
         reply_markup=markup
-    )
+    , parse_mode="HTML")
 
     bot.register_next_step_handler(msg, process_refill, call.message.message_id)
 
@@ -645,7 +645,7 @@ def process_refill(message, msg_id):
         msg = bot.edit_message_text(
             f"Пополнение баланса\n\nВведи число! Попробуй заново:",
             chat_id, msg_id, reply_markup=markup
-        )
+        , parse_mode="HTML")
         bot.register_next_step_handler(msg, process_refill, msg_id)
         return
 
@@ -655,7 +655,7 @@ def process_refill(message, msg_id):
         msg = bot.edit_message_text(
             f"Пополнение баланса\n\nМинимум {min_amount}$! Введи заново:",
             chat_id, msg_id, reply_markup=markup
-        )
+        , parse_mode="HTML")
         bot.register_next_step_handler(msg, process_refill, msg_id)
         return
 
@@ -667,7 +667,7 @@ def process_refill(message, msg_id):
         bot.edit_message_text(
             "Ошибка создания инвойса. Попробуй позже.",
             chat_id, msg_id, reply_markup=markup
-        )
+        , parse_mode="HTML")
         return
 
     invoices = load_invoices()
@@ -683,7 +683,7 @@ def process_refill(message, msg_id):
     msg = bot.edit_message_text(
         f"Счет на оплату\n\nСумма: {amount}$\nМетод: CryptoBot (USDT)\n\nОжидаю оплату...",
         chat_id, msg_id, reply_markup=markup
-    )
+    , parse_mode="HTML")
 
     thread = threading.Thread(
         target=monitor_invoice,
@@ -709,7 +709,7 @@ def rules(call):
         call.message.chat.id,
         call.message.message_id,
         reply_markup=markup
-    )
+    , parse_mode="HTML")
 
 # ==================== НАЗАД В МЕНЮ ====================
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
@@ -724,7 +724,7 @@ def back_to_menu(call):
 def admin_panel(message):
     user_id = message.from_user.id
     if not is_admin(user_id):
-        bot.send_message(message.chat.id, "Нет доступа!")
+        bot.send_message(message.chat.id, "Нет доступа!", parse_mode="HTML")
         return
 
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -738,7 +738,7 @@ def admin_panel(message):
         types.InlineKeyboardButton("Изменить контент", callback_data="admin_content")
     )
 
-    bot.send_message(message.chat.id, "Админ Панель", reply_markup=markup)
+    bot.send_message(message.chat.id, "Админ Панель", reply_markup=markup, parse_mode="HTML")
 
 # ==================== АДМИН: КАНАЛЫ ====================
 @bot.callback_query_handler(func=lambda call: call.data == "admin_channels")
@@ -763,7 +763,7 @@ def admin_channels(call):
         markup.add(types.InlineKeyboardButton("Удалить канал", callback_data="admin_remove_channel"))
     markup.add(types.InlineKeyboardButton("Назад", callback_data="admin_back"))
 
-    bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+    bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: call.data == "admin_add_channel")
 def admin_add_channel(call):
@@ -777,7 +777,7 @@ def admin_add_channel(call):
     msg = bot.edit_message_text(
         "Введи ID канала, @username или ссылку t.me/...",
         call.message.chat.id, call.message.message_id, reply_markup=markup
-    )
+    , parse_mode="HTML")
     bot.register_next_step_handler(msg, process_add_channel)
 
 def process_add_channel(message):
@@ -789,14 +789,14 @@ def process_add_channel(message):
     channel_id = resolve_channel_id(channel_input)
 
     if channel_id is None:
-        bot.send_message(message.chat.id, "Неверный формат! Введи @username, ссылку t.me/... или числовой ID.")
+        bot.send_message(message.chat.id, "Неверный формат! Введи @username, ссылку t.me/... или числовой ID.", parse_mode="HTML")
         return
 
     if not check_bot_admin_in_channel(channel_id):
         bot.send_message(
             message.chat.id,
             f"Бот должен быть администратором в канале {channel_input}\n\nДобавь бота админом и попробуй снова!"
-        )
+        , parse_mode="HTML")
         return
 
     admin_db = load_admin_db()
@@ -806,9 +806,9 @@ def process_add_channel(message):
         channels.append(channel_id)
         admin_db["channels"] = channels
         save_admin_db(admin_db)
-        bot.send_message(message.chat.id, f"Канал {channel_input} добавлен!")
+        bot.send_message(message.chat.id, f"Канал {channel_input} добавлен!", parse_mode="HTML")
     else:
-        bot.send_message(message.chat.id, "Канал уже в списке")
+        bot.send_message(message.chat.id, "Канал уже в списке", parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: call.data == "admin_remove_channel")
 def admin_remove_channel(call):
@@ -831,7 +831,7 @@ def admin_remove_channel(call):
         markup.add(types.InlineKeyboardButton(f"Удалить {ch_id}", callback_data=f"remove_ch_{idx-1}"))
     markup.add(types.InlineKeyboardButton("Назад", callback_data="admin_channels"))
 
-    bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+    bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("remove_ch_"))
 def process_remove_channel(call):
@@ -872,16 +872,16 @@ def admin_give_balance(call):
     user_id = call.from_user.id
     if not is_admin(user_id):
         return
-    msg = bot.send_message(call.message.chat.id, "Введи ID пользователя:")
+    msg = bot.send_message(call.message.chat.id, "Введи ID пользователя:", parse_mode="HTML")
     bot.register_next_step_handler(msg, admin_get_user_id_for_balance)
 
 def admin_get_user_id_for_balance(message):
     try:
         target_user_id = int(message.text)
-        msg = bot.send_message(message.chat.id, "Введи сумму для выдачи:")
+        msg = bot.send_message(message.chat.id, "Введи сумму для выдачи:", parse_mode="HTML")
         bot.register_next_step_handler(msg, admin_process_balance, target_user_id)
     except ValueError:
-        bot.send_message(message.chat.id, "ID должно быть числом!")
+        bot.send_message(message.chat.id, "ID должно быть числом!", parse_mode="HTML")
 
 def admin_process_balance(message, target_user_id):
     try:
@@ -894,9 +894,9 @@ def admin_process_balance(message, target_user_id):
             }
         users[str(target_user_id)]["balance"] = round(users[str(target_user_id)]["balance"] + amount, 2)
         save_users(users)
-        bot.send_message(message.chat.id, f"Выдано {amount}$ пользователю {target_user_id}")
+        bot.send_message(message.chat.id, f"Выдано {amount}$ пользователю {target_user_id}", parse_mode="HTML")
     except ValueError:
-        bot.send_message(message.chat.id, "Введи число!")
+        bot.send_message(message.chat.id, "Введи число!", parse_mode="HTML")
 
 # ==================== АДМИН: БАН ====================
 @bot.callback_query_handler(func=lambda call: call.data == "admin_ban")
@@ -904,7 +904,7 @@ def admin_ban(call):
     user_id = call.from_user.id
     if not is_admin(user_id):
         return
-    msg = bot.send_message(call.message.chat.id, "Введи ID пользователя для бана/анбана:")
+    msg = bot.send_message(call.message.chat.id, "Введи ID пользователя для бана/анбана:", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_ban)
 
 def process_ban(message):
@@ -913,13 +913,13 @@ def process_ban(message):
         admin_db = load_admin_db()
         if target_user_id in admin_db["banned_users"]:
             admin_db["banned_users"].remove(target_user_id)
-            bot.send_message(message.chat.id, f"Пользователь {target_user_id} разбанен")
+            bot.send_message(message.chat.id, f"Пользователь {target_user_id} разбанен", parse_mode="HTML")
         else:
             admin_db["banned_users"].append(target_user_id)
-            bot.send_message(message.chat.id, f"Пользователь {target_user_id} забанен")
+            bot.send_message(message.chat.id, f"Пользователь {target_user_id} забанен", parse_mode="HTML")
         save_admin_db(admin_db)
     except ValueError:
-        bot.send_message(message.chat.id, "ID должно быть числом!")
+        bot.send_message(message.chat.id, "ID должно быть числом!", parse_mode="HTML")
 
 # ==================== АДМИН: ОСТАТОК ====================
 @bot.callback_query_handler(func=lambda call: call.data == "admin_stock")
@@ -927,7 +927,7 @@ def admin_stock(call):
     user_id = call.from_user.id
     if not is_admin(user_id):
         return
-    msg = bot.send_message(call.message.chat.id, "Введи новое количество токенов:")
+    msg = bot.send_message(call.message.chat.id, "Введи новое количество токенов:", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_stock)
 
 def process_stock(message):
@@ -936,9 +936,9 @@ def process_stock(message):
         admin_db = load_admin_db()
         admin_db["tokens_in_bot"] = quantity
         save_admin_db(admin_db)
-        bot.send_message(message.chat.id, f"Остаток изменен на {quantity}")
+        bot.send_message(message.chat.id, f"Остаток изменен на {quantity}", parse_mode="HTML")
     except ValueError:
-        bot.send_message(message.chat.id, "Введи число!")
+        bot.send_message(message.chat.id, "Введи число!", parse_mode="HTML")
 
 # ==================== АДМИН: ЦЕНА ====================
 @bot.callback_query_handler(func=lambda call: call.data == "admin_price")
@@ -946,7 +946,7 @@ def admin_price(call):
     user_id = call.from_user.id
     if not is_admin(user_id):
         return
-    msg = bot.send_message(call.message.chat.id, "Введи новую цену токена:")
+    msg = bot.send_message(call.message.chat.id, "Введи новую цену токена:", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_price)
 
 def process_price(message):
@@ -955,9 +955,9 @@ def process_price(message):
         admin_db = load_admin_db()
         admin_db["product_price"] = price
         save_admin_db(admin_db)
-        bot.send_message(message.chat.id, f"Цена изменена на {price}$")
+        bot.send_message(message.chat.id, f"Цена изменена на {price}$", parse_mode="HTML")
     except ValueError:
-        bot.send_message(message.chat.id, "Введи число!")
+        bot.send_message(message.chat.id, "Введи число!", parse_mode="HTML")
 
 # ==================== АДМИН: МИН КОЛ-ВО ====================
 @bot.callback_query_handler(func=lambda call: call.data == "admin_min_qty")
@@ -965,7 +965,7 @@ def admin_min_qty(call):
     user_id = call.from_user.id
     if not is_admin(user_id):
         return
-    msg = bot.send_message(call.message.chat.id, "Введи минимальное количество покупки:")
+    msg = bot.send_message(call.message.chat.id, "Введи минимальное количество покупки:", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_min_qty)
 
 def process_min_qty(message):
@@ -974,9 +974,9 @@ def process_min_qty(message):
         admin_db = load_admin_db()
         admin_db["min_purchase"] = min_qty
         save_admin_db(admin_db)
-        bot.send_message(message.chat.id, f"Минимум изменено на {min_qty}")
+        bot.send_message(message.chat.id, f"Минимум изменено на {min_qty}", parse_mode="HTML")
     except ValueError:
-        bot.send_message(message.chat.id, "Введи число!")
+        bot.send_message(message.chat.id, "Введи число!", parse_mode="HTML")
 
 # ==================== АДМИН: КОНТЕНТ ====================
 @bot.callback_query_handler(func=lambda call: call.data == "admin_content")
@@ -1004,7 +1004,7 @@ def admin_content(call):
         f"Сейчас в боте: {count} шт\n\n"
         f"Добавляй по одной строке или сразу несколько (каждая строка = 1 токен).",
         call.message.chat.id, call.message.message_id, reply_markup=markup
-    )
+    , parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: call.data == "admin_content_add")
 def admin_content_add(call):
@@ -1016,7 +1016,7 @@ def admin_content_add(call):
     msg = bot.edit_message_text(
         "Введи контент (каждая строка — отдельный токен):\n\nПример:\nlogin1:pass1\nlogin2:pass2\nlogin3:pass3",
         call.message.chat.id, call.message.message_id, reply_markup=markup
-    )
+    , parse_mode="HTML")
     bot.register_next_step_handler(msg, process_content)
 
 @bot.callback_query_handler(func=lambda call: call.data == "admin_content_clear")
@@ -1045,7 +1045,7 @@ def process_content(message):
     bot.send_message(
         message.chat.id,
         f"Добавлено {len(new_lines)} шт.\nВсего в боте: {len(content_list)} шт."
-    )
+    , parse_mode="HTML")
 
 # ==================== ЗАПУСК ====================
 if __name__ == "__main__":
