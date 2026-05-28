@@ -8,10 +8,10 @@ import threading
 from flask import Flask, request, abort
 
 # ==================== КОНФИГ ====================
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8492517983:AAFyp_KsZyIVBaYqY2CRbjKYHCky3WuwxUQ")
-ADMIN_IDS = [8118184388]
-CRYPTOBOT_TOKEN = os.environ.get("CRYPTOBOT_TOKEN", "582363:AALEf7JOugnrQyrkMHzH5UrO7pdOjjYnTQy")
-SUPPORT_LINK = "https://t.me/your_admin_username"  # <-- замени на юз поддержки
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8651673506:AAHUYxGizvWIqUxV7_54PSFWDQZlJtuS6MI")
+ADMIN_IDS = [8118184388, 8676390469]
+CRYPTOBOT_TOKEN = os.environ.get("CRYPTOBOT_TOKEN", "588307:AATu42lIO110AeIYEitkFgoW2s5vsV7a96n")
+SUPPORT_LINK = "@Xeltryx"  # <-- замени на юз поддержки
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "mysecrettoken")  # секрет для защиты вебхука
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://token-mhyd.onrender.com")
 DB_FILE = "users_db.json"
