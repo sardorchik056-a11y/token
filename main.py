@@ -560,10 +560,10 @@ def confirm_buy(call):
     markup.add(eb("back", "Главное меню", callback_data="back_to_menu"))
 
     bot.edit_message_text(
-        f"Покупка успешна!\n"
+        f'<tg-emoji emoji-id=\"5206607081334906820">⭐</tg-emoji>Покупка успешна!\n'
         f"——————————————\n"
-        f"Куплено: {quantity} шт\n"
-        f"Потрачено: {total_price}$\n"
+        f'<tg-emoji emoji-id=\"5307843983102204243">⭐</tg-emoji>Куплено: {quantity} шт\n'
+        f'<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>Потрачено: {total_price}$\n'
         f"——————————————\n\n"
         f"{content_text}",
         chat_id, msg_id, reply_markup=markup
@@ -589,9 +589,9 @@ def check_balance(call):
 
     bot.edit_message_text(
         f"——————————————\n"
-        f"|User: @{username}!\n"
-        f"|ID: {user_id}\n"
-        f"|Баланс: {balance}$\n"
+        f'|<tg-emoji emoji-id=\"5906581476639513176">⭐</tg-emoji>User: @{username}!\n'
+        f'|<tg-emoji emoji-id=\"5445353829304387411">⭐</tg-emoji>ID: {user_id}\n'
+        f'|<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>Баланс: {balance}$\n'
         f"——————————————",
         call.message.chat.id,
         call.message.message_id,
