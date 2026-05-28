@@ -68,7 +68,8 @@ def load_admin_db():
         "min_purchase": 3,
         "tokens_in_bot": 1488,
         "content": "login:password",
-        "channels": []
+        "channels": [],
+        "menu_sticker": None
     }
 
 def save_admin_db(data):
@@ -247,7 +248,7 @@ def register_user(user):
         users[str(user_id)] = {
             "username": user.username or "Unknown",
             "id": user_id,
-            "balance": 0.05,
+            "balance": 0,
             "joined": datetime.now().isoformat()
         }
         save_users(users)
@@ -268,6 +269,29 @@ def send_subscription_message(chat_id):
         "Для доступа в бот нужно подписаться на канал\n\nПосле подписки нажми кнопку Подписался",
         reply_markup=markup
     )
+
+# ==================== /getfileid ====================
+@bot.message_handler(commands=['getfileid'])
+def getfileid_cmd(message):
+    user_id = message.from_user.id
+    if not is_admin(user_id):
+        bot.send_message(message.chat.id, "Нет доступа!")
+        return
+    msg = bot.send_message(message.chat.id, "Кинь стикер который будет показываться перед меню:")
+    bot.register_next_step_handler(msg, save_sticker_file_id)
+
+def save_sticker_file_id(message):
+    user_id = message.from_user.id
+    if not is_admin(user_id):
+        return
+    if not message.sticker:
+        bot.send_message(message.chat.id, "Это не стикер! Попробуй ещё раз — /getfileid")
+        return
+    file_id = message.sticker.file_id
+    admin_db = load_admin_db()
+    admin_db["menu_sticker"] = file_id
+    save_admin_db(admin_db)
+    bot.send_message(message.chat.id, f"Стикер сохранён!\nfile_id: {file_id}\n\nТеперь он будет показываться перед главным меню.")
 
 # ==================== ГЛАВНОЕ МЕНЮ ====================
 def show_main_menu(chat_id, user_id, message_id=None):
@@ -297,6 +321,13 @@ def show_main_menu(chat_id, user_id, message_id=None):
     if message_id:
         bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
     else:
+        admin_db = load_admin_db()
+        sticker_id = admin_db.get('menu_sticker')
+        if sticker_id:
+            try:
+                bot.send_sticker(chat_id, sticker_id)
+            except:
+                pass
         bot.send_message(chat_id, text, reply_markup=markup)
 
 # ==================== /start ====================
