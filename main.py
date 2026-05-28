@@ -43,8 +43,7 @@ def e(key):
 
 def eb(key, label):
     """Возвращает текст кнопки с кастомным эмодзи"""
-    # После того как поставишь свои ID — раскомментируй строку ниже и удали строку выше:
-           f"<tg-emoji emoji-id=\"{E[key]}\">⭐</tg-emoji> {label}"
+    return f"<tg-emoji emoji-id=\"{E[key]}\">⭐</tg-emoji> {label}"
 
 # ==================== БД ====================
 def load_users():
@@ -309,11 +308,15 @@ def show_main_menu(chat_id, user_id, message_id=None):
         "——————————————"
     )
 
-    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup = types.InlineKeyboardMarkup()
     markup.add(
-        types.InlineKeyboardButton(eb("buy", "Купить Token"), callback_data="buy_token"),
+        types.InlineKeyboardButton(eb("buy", "Купить Token"), callback_data="buy_token")
+    )
+    markup.add(
         types.InlineKeyboardButton(eb("balance", "Баланс"), callback_data="check_balance"),
-        types.InlineKeyboardButton(eb("rules", "Правила"), callback_data="rules"),
+        types.InlineKeyboardButton(eb("rules", "Правила"), callback_data="rules")
+    )
+    markup.add(
         types.InlineKeyboardButton(eb("support", "Поддержка"), url=SUPPORT_LINK)
     )
 
