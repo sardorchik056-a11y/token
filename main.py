@@ -4,45 +4,44 @@ import json
 import os
 from datetime import datetime
 import requests
-import time
 import threading
+from flask import Flask, request, abort
 
 # ==================== КОНФИГ ====================
-BOT_TOKEN = "8796598287:AAFK9lvJ_T3oVC4Xr3VH0U_ArmPmY4CskSs"
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8796598287:AAFK9lvJ_T3oVC4Xr3VH0U_ArmPmY4CskSs")
 ADMIN_IDS = [8118184388]
-CRYPTOBOT_TOKEN = "582363:AALEf7JOugnrQyrkMHzH5UrO7pdOjjYnTQy"
+CRYPTOBOT_TOKEN = os.environ.get("CRYPTOBOT_TOKEN", "582363:AALEf7JOugnrQyrkMHzH5UrO7pdOjjYnTQy")
 SUPPORT_LINK = "https://t.me/your_admin_username"  # <-- замени на юз поддержки
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "mysecrettoken")  # секрет для защиты вебхука
+WEBHOOK_URL = os.environ.get("https://token-mhyd.onrender.com", "")  # https://your-app.onrender.com
 DB_FILE = "users_db.json"
 ADMIN_DB = "admin_db.json"
 INVOICE_DB = "invoices_db.json"
 
 # ==================== КАСТОМНЫЕ ЭМОДЗИ ====================
-# Замени значения на свои ID кастомных эмодзи
 E = {
-    "shop":    "5307843983102204243",   # 🏪
-    "buy":     "5307843983102204243",   # 🔑
-    "balance": "6078158956188930337",   # 🔵
-    "rules":   "5341715473882955310",   # ⚙️
-    "support": "5848400681416793625",   # 🧡
-    "token":   "5449407131675558756",   # 💎
-    "back":    "6039539366177541657",   # 🔙
-    "confirm": "5206607081334906820",   # ✅
-    "cancel":  "5210952531676504517",   # ❌
-    "refill":  "6078158956188930337",   # 💰
-    "channel": "5271604874419647061",   # 🔗
-    "check":   "5206607081334906820",   # ✅
-    "pay":     "6078158956188930337",   # 💳
-    "price":   "5197434882321567830",   # 💵
-    "user":    "5906581476639513176",   # 👤
-    "id":      "5445353829304387411",   # 🪪
+    "shop":    "5307843983102204243",
+    "buy":     "5307843983102204243",
+    "balance": "6078158956188930337",
+    "rules":   "5341715473882955310",
+    "support": "5848400681416793625",
+    "token":   "5449407131675558756",
+    "back":    "6039539366177541657",
+    "confirm": "5206607081334906820",
+    "cancel":  "5210952531676504517",
+    "refill":  "6078158956188930337",
+    "channel": "5271604874419647061",
+    "check":   "5206607081334906820",
+    "pay":     "6078158956188930337",
+    "price":   "5197434882321567830",
+    "user":    "5906581476639513176",
+    "id":      "5445353829304387411",
 }
 
 def e(key):
-    """Возвращает кастомный эмодзи тег для текста сообщений"""
     return f"<tg-emoji emoji-id=\"{E[key]}\">⭐</tg-emoji>"
 
 def eb(key, label, **kwargs):
-    """InlineKeyboardButton с кастомным эмодзи через icon_custom_emoji_id"""
     return types.InlineKeyboardButton(
         text=label,
         icon_custom_emoji_id=E[key],
@@ -92,11 +91,28 @@ def check_bot_admin_in_channel(channel_id):
     try:
         chat_member = bot.get_chat_member(channel_id, bot.get_me().id)
         return chat_member.status in ['administrator', 'creator']
-    except Exception as e:
-        print(f"Ошибка проверки админа: {str(e)}")
+    except Exception as ex:
+        print(f"Ошибка проверки админа: {str(ex)}")
         return False
 
-bot = telebot.TeleBot(BOT_TOKEN)
+# ==================== БОТ ====================
+bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
+
+# ==================== FLASK ====================
+app = Flask(__name__)
+
+@app.route(f"/webhook/{WEBHOOK_SECRET}", methods=["POST"])
+def webhook():
+    if request.headers.get("content-type") != "application/json":
+        abort(403)
+    json_data = request.get_data().decode("utf-8")
+    update = telebot.types.Update.de_json(json_data)
+    bot.process_new_updates([update])
+    return "OK", 200
+
+@app.route("/", methods=["GET"])
+def index():
+    return "Bot is running!", 200
 
 # ==================== CRYPTOBOT ====================
 def create_invoice(amount_usd, user_id, description="Пополнение баланса"):
@@ -131,8 +147,8 @@ def create_invoice(amount_usd, user_id, description="Пополнение бал
         else:
             print(f"CryptoBot ошибка: {result}")
             return None
-    except Exception as e:
-        print(f"Ошибка создания инвойса: {str(e)}")
+    except Exception as ex:
+        print(f"Ошибка создания инвойса: {str(ex)}")
         return None
 
 def check_invoice_status(invoice_id):
@@ -153,11 +169,12 @@ def check_invoice_status(invoice_id):
                     "paid_amount": inv.get("paid_amount")
                 }
         return None
-    except Exception as e:
-        print(f"Ошибка проверки инвойса: {str(e)}")
+    except Exception as ex:
+        print(f"Ошибка проверки инвойса: {str(ex)}")
         return None
 
 def monitor_invoice(invoice_id, user_id, chat_id, message_id, amount_usd):
+    import time
     max_checks = 1800
     check_count = 0
     while check_count < max_checks:
@@ -178,8 +195,8 @@ def monitor_invoice(invoice_id, user_id, chat_id, message_id, amount_usd):
             try:
                 bot.edit_message_text(
                     f"Платеж успешно получен!\n\nВыплачено: {amount_usd}$\nБаланс пополнен на {amount_usd}$",
-                    chat_id, message_id
-                , parse_mode="HTML")
+                    chat_id, message_id, parse_mode="HTML"
+                )
             except:
                 pass
             time.sleep(3)
@@ -195,8 +212,8 @@ def monitor_invoice(invoice_id, user_id, chat_id, message_id, amount_usd):
                 markup.add(eb("back", "Назад", callback_data="check_balance"))
                 bot.edit_message_text(
                     "Инвойс истек! Время для оплаты истекло.",
-                    chat_id, message_id, reply_markup=markup
-                , parse_mode="HTML")
+                    chat_id, message_id, reply_markup=markup, parse_mode="HTML"
+                )
             except:
                 pass
             break
@@ -268,9 +285,9 @@ def send_subscription_message(chat_id):
 
     bot.send_message(
         chat_id,
-        '<b><tg-emoji emoji-id=\"5420323339723881652">⭐</tg-emoji>Для доступа в бот нужно подписаться на канал\n\nПосле подписки нажми кнопку Подписался<tg-emoji emoji-id=\"5206607081334906820">⭐</tg-emoji></b>',
-        reply_markup=markup
-    , parse_mode="HTML")
+        '<b><tg-emoji emoji-id="5420323339723881652">⭐</tg-emoji>Для доступа в бот нужно подписаться на канал\n\nПосле подписки нажми кнопку Подписался<tg-emoji emoji-id="5206607081334906820">⭐</tg-emoji></b>',
+        reply_markup=markup, parse_mode="HTML"
+    )
 
 # ==================== /getfileid ====================
 @bot.message_handler(commands=['getfileid'])
@@ -305,23 +322,19 @@ def show_main_menu(chat_id, user_id, message_id=None):
     text = (
         "<b>Kretros Shop</b>\n"
         "——————————————\n"
-        f'|<b><tg-emoji emoji-id=\"5906581476639513176">⭐</tg-emoji>User: @{username}!\n'
-        f'|<tg-emoji emoji-id=\"5445353829304387411">⭐</tg-emoji>ID: {user_id}\n'
-        f'|<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>Баланс: {balance}$</b>\n'
+        f'|<b><tg-emoji emoji-id="5906581476639513176">⭐</tg-emoji>User: @{username}!\n'
+        f'|<tg-emoji emoji-id="5445353829304387411">⭐</tg-emoji>ID: {user_id}\n'
+        f'|<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>Баланс: {balance}$</b>\n'
         "——————————————"
     )
 
     markup = types.InlineKeyboardMarkup()
-    markup.add(
-        eb("buy", "Купить Token", callback_data="buy_token")
-    )
+    markup.add(eb("buy", "Купить Token", callback_data="buy_token"))
     markup.add(
         eb("balance", "Баланс", callback_data="check_balance"),
         eb("rules", "Правила", callback_data="rules")
     )
-    markup.add(
-        eb("support", "Поддержка", url=SUPPORT_LINK)
-    )
+    markup.add(eb("support", "Поддержка", url=SUPPORT_LINK))
 
     if message_id:
         bot.edit_message_text(text, chat_id, message_id, reply_markup=markup, parse_mode="HTML")
@@ -385,17 +398,17 @@ def buy_token(call):
     markup.add(eb("back", "Назад", callback_data="back_to_menu"))
 
     msg = bot.edit_message_text(
-        f'<tg-emoji emoji-id=\"5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
+        f'<tg-emoji emoji-id="5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
         f"——————————————\n"
-        f'<b>Ценник: {price}<tg-emoji emoji-id=\"5197434882321567830">⭐</tg-emoji>\n'
-        f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id=\"5397916757333654639">⭐</tg-emoji>\n'
-        f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id=\"5386367538735104399">⭐</tg-emoji></b>\n'
+        f'<b>Ценник: {price}<tg-emoji emoji-id="5197434882321567830">⭐</tg-emoji>\n'
+        f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id="5397916757333654639">⭐</tg-emoji>\n'
+        f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id="5386367538735104399">⭐</tg-emoji></b>\n'
         f"——————————————\n\n"
         f'<b>Введите количество токенов:</b>',
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=markup
-    , parse_mode="HTML")
+        reply_markup=markup, parse_mode="HTML"
+    )
 
     bot.register_next_step_handler(msg, process_quantity, call.message.message_id)
 
@@ -413,61 +426,39 @@ def process_quantity(message, msg_id):
         pass
 
     admin_db = load_admin_db()
-
-    # Проверяем что юзер не написал что-то странное
     text = message.text.strip() if message.text else ""
-
-    try:
-        quantity = int(text)
-    except ValueError:
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(eb("back", "Назад", callback_data="back_to_menu"))
-        msg = bot.edit_message_text(
-            f'<tg-emoji emoji-id=\"5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
-            f"——————————————\n"
-            f'<b>Ценник: {price}<tg-emoji emoji-id=\"5197434882321567830">⭐</tg-emoji>\n'
-            f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id=\"5397916757333654639">⭐</tg-emoji>\n'
-            f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id=\"5386367538735104399">⭐</tg-emoji></b>\n'
-            f"——————————————\n\n"
-            f'<b>Введите число!</b>',
-            chat_id, msg_id, reply_markup=markup
-        , parse_mode="HTML")
-        bot.register_next_step_handler(msg, process_quantity, msg_id)
-        return
-
     min_purchase = admin_db["min_purchase"]
     price = admin_db["product_price"]
     tokens_left = admin_db["tokens_in_bot"]
 
-    if quantity < min_purchase:
+    def _token_msg(extra_text):
         markup = types.InlineKeyboardMarkup(row_width=1)
         markup.add(eb("back", "Назад", callback_data="back_to_menu"))
-        msg = bot.edit_message_text(
-            f'<tg-emoji emoji-id=\"5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
+        return bot.edit_message_text(
+            f'<tg-emoji emoji-id="5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
             f"——————————————\n"
-            f'<b>Ценник: {price}<tg-emoji emoji-id=\"5197434882321567830">⭐</tg-emoji>\n'
-            f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id=\"5397916757333654639">⭐</tg-emoji>\n'
-            f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id=\"5386367538735104399">⭐</tg-emoji></b>\n'
+            f'<b>Ценник: {price}<tg-emoji emoji-id="5197434882321567830">⭐</tg-emoji>\n'
+            f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id="5397916757333654639">⭐</tg-emoji>\n'
+            f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id="5386367538735104399">⭐</tg-emoji></b>\n'
             f"——————————————\n\n"
-            f'<b>Минимум {min_purchase}!</b>',
-            chat_id, msg_id, reply_markup=markup
-        , parse_mode="HTML")
+            f'<b>{extra_text}</b>',
+            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
+        )
+
+    try:
+        quantity = int(text)
+    except ValueError:
+        msg = _token_msg("Введите число!")
+        bot.register_next_step_handler(msg, process_quantity, msg_id)
+        return
+
+    if quantity < min_purchase:
+        msg = _token_msg(f"Минимум {min_purchase}!")
         bot.register_next_step_handler(msg, process_quantity, msg_id)
         return
 
     if quantity > tokens_left:
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(eb("back", "Назад", callback_data="back_to_menu"))
-        msg = bot.edit_message_text(
-            f'<tg-emoji emoji-id=\"5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
-            f"——————————————\n"
-            f'<b>Ценник: {price}<tg-emoji emoji-id=\"5197434882321567830">⭐</tg-emoji>\n'
-            f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id=\"5397916757333654639">⭐</tg-emoji>\n'
-            f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id=\"5386367538735104399">⭐</tg-emoji></b>\n'
-            f"——————————————\n\n"
-            f'<b>Недостаточно токенов!</b>',
-            chat_id, msg_id, reply_markup=markup
-        , parse_mode="HTML")
+        msg = _token_msg("Недостаточно токенов!")
         bot.register_next_step_handler(msg, process_quantity, msg_id)
         return
 
@@ -475,7 +466,6 @@ def process_quantity(message, msg_id):
     users = load_users()
     user_balance = users.get(str(user_id), {}).get("balance", 0)
 
-    # Экран подтверждения
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         eb("confirm", "Купить", callback_data=f"confirm_buy_{quantity}"),
@@ -483,15 +473,15 @@ def process_quantity(message, msg_id):
     )
 
     bot.edit_message_text(
-        f'<tg-emoji emoji-id=\"5206607081334906820">⭐</tg-emoji><b>Подтверждение!</b>\n'
+        f'<tg-emoji emoji-id="5206607081334906820">⭐</tg-emoji><b>Подтверждение!</b>\n'
         f"——————————————\n"
-        f'<b><tg-emoji emoji-id=\"5226513232549664618">⭐</tg-emoji>Количество: {quantity} шт\n'
-        f'<tg-emoji emoji-id=\"5197434882321567830">⭐</tg-emoji>Цена за шт: {price}$\n'
-        f'<tg-emoji emoji-id=\"5201691993775818138">⭐</tg-emoji>Итого: {total_price}$\n'
-        f'<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>баланс: {user_balance}$</b>\n'
+        f'<b><tg-emoji emoji-id="5226513232549664618">⭐</tg-emoji>Количество: {quantity} шт\n'
+        f'<tg-emoji emoji-id="5197434882321567830">⭐</tg-emoji>Цена за шт: {price}$\n'
+        f'<tg-emoji emoji-id="5201691993775818138">⭐</tg-emoji>Итого: {total_price}$\n'
+        f'<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>баланс: {user_balance}$</b>\n'
         f"——————————————",
-        chat_id, msg_id, reply_markup=markup
-    , parse_mode="HTML")
+        chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
+    )
 
 # ==================== ПОДТВЕРЖДЕНИЕ ====================
 @bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_buy_"))
@@ -525,33 +515,29 @@ def confirm_buy(call):
             eb("cancel", "Отмена", callback_data="back_to_menu")
         )
         bot.edit_message_text(
-            f'<b><tg-emoji emoji-id=\"5210952531676504517">⭐</tg-emoji>Недостаточно средств!\n\n<tg-emoji emoji-id=\"5449683594425410231">⭐</tg-emoji>Нужно: {total_price}$\n<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>У вас: {user_balance}$</b>',
-            chat_id, msg_id, reply_markup=markup
-        , parse_mode="HTML")
+            f'<b><tg-emoji emoji-id="5210952531676504517">⭐</tg-emoji>Недостаточно средств!\n\n'
+            f'<tg-emoji emoji-id="5449683594425410231">⭐</tg-emoji>Нужно: {total_price}$\n'
+            f'<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>У вас: {user_balance}$</b>',
+            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
+        )
         return
 
-    # Проверяем наличие контента
     content_list = admin_db.get("content", [])
     if isinstance(content_list, str):
         content_list = [content_list] if content_list.strip() else []
 
     if len(content_list) < quantity:
         markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            eb("back", "Назад", callback_data="back_to_menu")
-        )
+        markup.add(eb("back", "Назад", callback_data="back_to_menu"))
         bot.edit_message_text(
-            f"<b>Ошибка! Контент закончился.\n\nОбратитесь в поддержку.</b>",
-            chat_id, msg_id, reply_markup=markup
-        , parse_mode="HTML")
+            "<b>Ошибка! Контент закончился.\n\nОбратитесь в поддержку.</b>",
+            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
+        )
         return
 
-    # Списываем
     users[str(user_id)]["balance"] = round(users[str(user_id)]["balance"] - total_price, 2)
     save_users(users)
     admin_db["tokens_in_bot"] -= quantity
-
-    # Берём нужное количество строк контента и удаляем их из списка
     issued_content = content_list[:quantity]
     admin_db["content"] = content_list[quantity:]
     save_admin_db(admin_db)
@@ -562,14 +548,14 @@ def confirm_buy(call):
     markup.add(eb("back", "Главное меню", callback_data="back_to_menu"))
 
     bot.edit_message_text(
-        f'<tg-emoji emoji-id=\"5206607081334906820">⭐</tg-emoji>Покупка успешна!\n'
+        f'<tg-emoji emoji-id="5206607081334906820">⭐</tg-emoji>Покупка успешна!\n'
         f"——————————————\n"
-        f'<tg-emoji emoji-id=\"5307843983102204243">⭐</tg-emoji>Куплено: {quantity} шт\n'
-        f'<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>Потрачено: {total_price}$\n'
+        f'<tg-emoji emoji-id="5307843983102204243">⭐</tg-emoji>Куплено: {quantity} шт\n'
+        f'<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>Потрачено: {total_price}$\n'
         f"——————————————\n\n"
         f"{content_text}",
-        chat_id, msg_id, reply_markup=markup
-    , parse_mode="HTML")
+        chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
+    )
 
 # ==================== БАЛАНС ====================
 @bot.callback_query_handler(func=lambda call: call.data == "check_balance")
@@ -593,14 +579,14 @@ def check_balance(call):
 
     bot.edit_message_text(
         f"——————————————\n"
-        f'|<tg-emoji emoji-id=\"5906581476639513176">⭐</tg-emoji>User: @{username}!\n'
-        f'|<tg-emoji emoji-id=\"5445353829304387411">⭐</tg-emoji>ID: {user_id}\n'
-        f'|<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>Баланс: {balance}$\n'
+        f'|<tg-emoji emoji-id="5906581476639513176">⭐</tg-emoji>User: @{username}!\n'
+        f'|<tg-emoji emoji-id="5445353829304387411">⭐</tg-emoji>ID: {user_id}\n'
+        f'|<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>Баланс: {balance}$\n'
         f"——————————————",
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=markup
-    , parse_mode="HTML")
+        reply_markup=markup, parse_mode="HTML"
+    )
 
 # ==================== ПОПОЛНИТЬ БАЛАНС ====================
 @bot.callback_query_handler(func=lambda call: call.data == "refill_balance")
@@ -618,11 +604,12 @@ def refill_balance(call):
     markup.add(eb("back", "Назад", callback_data="check_balance"))
 
     msg = bot.edit_message_text(
-        f'<b><tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>Пополнение баланса\n\n<tg-emoji emoji-id=\"5307843983102204243">⭐</tg-emoji>Введите сумму от {min_amount}$:</b>',
+        f'<b><tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>Пополнение баланса\n\n'
+        f'<tg-emoji emoji-id="5307843983102204243">⭐</tg-emoji>Введите сумму от {min_amount}$:</b>',
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=markup
-    , parse_mode="HTML")
+        reply_markup=markup, parse_mode="HTML"
+    )
 
     bot.register_next_step_handler(msg, process_refill, call.message.message_id)
 
@@ -640,40 +627,36 @@ def process_refill(message, msg_id):
 
     admin_db = load_admin_db()
     min_amount = admin_db.get("product_price", 5)
-
     text = message.text.strip() if message.text else ""
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(eb("back", "Назад", callback_data="check_balance"))
 
     try:
         amount = float(text)
     except ValueError:
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(eb("back", "Назад", callback_data="check_balance"))
         msg = bot.edit_message_text(
-            f"Пополнение баланса\n\nВведи число! Попробуй заново:",
-            chat_id, msg_id, reply_markup=markup
-        , parse_mode="HTML")
+            "Пополнение баланса\n\nВведи число! Попробуй заново:",
+            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
+        )
         bot.register_next_step_handler(msg, process_refill, msg_id)
         return
 
     if amount < min_amount:
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(eb("back", "Назад", callback_data="check_balance"))
         msg = bot.edit_message_text(
-            f'<b><tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji>Пополнение баланса\n\nМинимум {min_amount}$! Введи заново:</b>',
-            chat_id, msg_id, reply_markup=markup
-        , parse_mode="HTML")
+            f'<b><tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>Пополнение баланса\n\nМинимум {min_amount}$! Введи заново:</b>',
+            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
+        )
         bot.register_next_step_handler(msg, process_refill, msg_id)
         return
 
     invoice = create_invoice(amount, user_id)
 
     if not invoice:
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(eb("back", "Назад", callback_data="check_balance"))
         bot.edit_message_text(
-            "<b>Ошибка создания инвойса. Попробуй позже.<b>",
-            chat_id, msg_id, reply_markup=markup
-        , parse_mode="HTML")
+            "<b>Ошибка создания инвойса. Попробуй позже.</b>",
+            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
+        )
         return
 
     invoices = load_invoices()
@@ -687,9 +670,11 @@ def process_refill(message, msg_id):
     )
 
     msg = bot.edit_message_text(
-        f'<tg-emoji emoji-id=\"6078158956188930337">⭐</tg-emoji><b>Счет на оплату\n\n<tg-emoji emoji-id=\"5224257782013769471">⭐</tg-emoji>Сумма: {amount}$\n<tg-emoji emoji-id=\"5307843983102204243">⭐</tg-emoji>Метод: CryptoBot (USDT)\n\nОжидаю оплату...</b>',
-        chat_id, msg_id, reply_markup=markup
-    , parse_mode="HTML")
+        f'<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji><b>Счет на оплату\n\n'
+        f'<tg-emoji emoji-id="5224257782013769471">⭐</tg-emoji>Сумма: {amount}$\n'
+        f'<tg-emoji emoji-id="5307843983102204243">⭐</tg-emoji>Метод: CryptoBot (USDT)\n\nОжидаю оплату...</b>',
+        chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
+    )
 
     thread = threading.Thread(
         target=monitor_invoice,
@@ -709,13 +694,13 @@ def rules(call):
     markup.add(eb("back", "Назад", callback_data="back_to_menu"))
 
     bot.edit_message_text(
-        '<b><tg-emoji emoji-id=\"5244961448525848230">⭐</tg-emoji>  Баланс с бота не выводится.\n\n'
-        '<tg-emoji emoji-id=\"5242293676834579345">⭐</tg-emoji>  Гарантия на токены составляет 30 минут после покупки.\n\n'
-        '<tg-emoji emoji-id=\"5242652525647127686">⭐</tg-emoji>  Любая попытка обмануть сервис равносильна блокировке.</b>',
+        '<b><tg-emoji emoji-id="5244961448525848230">⭐</tg-emoji>  Баланс с бота не выводится.\n\n'
+        '<tg-emoji emoji-id="5242293676834579345">⭐</tg-emoji>  Гарантия на токены составляет 30 минут после покупки.\n\n'
+        '<tg-emoji emoji-id="5242652525647127686">⭐</tg-emoji>  Любая попытка обмануть сервис равносильна блокировке.</b>',
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=markup
-    , parse_mode="HTML")
+        reply_markup=markup, parse_mode="HTML"
+    )
 
 # ==================== НАЗАД В МЕНЮ ====================
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
@@ -783,8 +768,8 @@ def admin_add_channel(call):
 
     msg = bot.edit_message_text(
         "Введи ID канала, @username или ссылку t.me/...",
-        call.message.chat.id, call.message.message_id, reply_markup=markup
-    , parse_mode="HTML")
+        call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML"
+    )
     bot.register_next_step_handler(msg, process_add_channel)
 
 def process_add_channel(message):
@@ -802,8 +787,9 @@ def process_add_channel(message):
     if not check_bot_admin_in_channel(channel_id):
         bot.send_message(
             message.chat.id,
-            f"Бот должен быть администратором в канале {channel_input}\n\nДобавь бота админом и попробуй снова!"
-        , parse_mode="HTML")
+            f"Бот должен быть администратором в канале {channel_input}\n\nДобавь бота админом и попробуй снова!",
+            parse_mode="HTML"
+        )
         return
 
     admin_db = load_admin_db()
@@ -1010,8 +996,8 @@ def admin_content(call):
         f"Управление контентом\n\n"
         f"Сейчас в боте: {count} шт\n\n"
         f"Добавляй по одной строке или сразу несколько (каждая строка = 1 токен).",
-        call.message.chat.id, call.message.message_id, reply_markup=markup
-    , parse_mode="HTML")
+        call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML"
+    )
 
 @bot.callback_query_handler(func=lambda call: call.data == "admin_content_add")
 def admin_content_add(call):
@@ -1022,8 +1008,8 @@ def admin_content_add(call):
     markup.add(types.InlineKeyboardButton("Назад", callback_data="admin_content"))
     msg = bot.edit_message_text(
         "Введи контент (каждая строка — отдельный токен):\n\nПример:\nlogin1:pass1\nlogin2:pass2\nlogin3:pass3",
-        call.message.chat.id, call.message.message_id, reply_markup=markup
-    , parse_mode="HTML")
+        call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML"
+    )
     bot.register_next_step_handler(msg, process_content)
 
 @bot.callback_query_handler(func=lambda call: call.data == "admin_content_clear")
@@ -1051,10 +1037,23 @@ def process_content(message):
     save_admin_db(admin_db)
     bot.send_message(
         message.chat.id,
-        f"Добавлено {len(new_lines)} шт.\nВсего в боте: {len(content_list)} шт."
-    , parse_mode="HTML")
+        f"Добавлено {len(new_lines)} шт.\nВсего в боте: {len(content_list)} шт.",
+        parse_mode="HTML"
+    )
 
 # ==================== ЗАПУСК ====================
+def setup_webhook():
+    """Устанавливает вебхук при старте"""
+    if WEBHOOK_URL:
+        webhook_full_url = f"{WEBHOOK_URL}/webhook/{WEBHOOK_SECRET}"
+        bot.remove_webhook()
+        bot.set_webhook(url=webhook_full_url)
+        print(f"Webhook установлен: {webhook_full_url}")
+    else:
+        print("ВНИМАНИЕ: WEBHOOK_URL не задан! Установи переменную окружения.")
+
 if __name__ == "__main__":
-    print("Бот запущен!")
-    bot.infinity_polling()
+    setup_webhook()
+    port = int(os.environ.get("PORT", 8080))
+    print(f"Бот запущен на порту {port}!")
+    app.run(host="0.0.0.0", port=port)
