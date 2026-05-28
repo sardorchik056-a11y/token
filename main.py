@@ -67,7 +67,7 @@ def load_admin_db():
         "product_price": 5,
         "min_purchase": 3,
         "tokens_in_bot": 1488,
-        "content": "login:password",
+        "content": [],
         "channels": [],
         "menu_sticker": None
     }
@@ -167,7 +167,7 @@ def monitor_invoice(invoice_id, user_id, chat_id, message_id, amount_usd):
         if status_info["status"] == "paid":
             users = load_users()
             if str(user_id) in users:
-                users[str(user_id)]["balance"] += amount_usd
+                users[str(user_id)]["balance"] = round(users[str(user_id)]["balance"] + amount_usd, 2)
                 save_users(users)
             invoices = load_invoices()
             if invoice_id in invoices:
@@ -523,13 +523,33 @@ def confirm_buy(call):
         )
         return
 
+    # Проверяем наличие контента
+    content_list = admin_db.get("content", [])
+    if isinstance(content_list, str):
+        content_list = [content_list] if content_list.strip() else []
+
+    if len(content_list) < quantity:
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            types.InlineKeyboardButton(eb("back", "Назад"), callback_data="back_to_menu")
+        )
+        bot.edit_message_text(
+            f"Ошибка! Контент закончился.\n\nОбратитесь в поддержку.",
+            chat_id, msg_id, reply_markup=markup
+        )
+        return
+
     # Списываем
-    users[str(user_id)]["balance"] -= total_price
+    users[str(user_id)]["balance"] = round(users[str(user_id)]["balance"] - total_price, 2)
     save_users(users)
     admin_db["tokens_in_bot"] -= quantity
+
+    # Берём нужное количество строк контента и удаляем их из списка
+    issued_content = content_list[:quantity]
+    admin_db["content"] = content_list[quantity:]
     save_admin_db(admin_db)
 
-    content = admin_db["content"]
+    content_text = "\n".join(issued_content)
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(types.InlineKeyboardButton(eb("back", "Главное меню"), callback_data="back_to_menu"))
@@ -540,7 +560,7 @@ def confirm_buy(call):
         f"Куплено: {quantity} шт\n"
         f"Потрачено: {total_price}$\n"
         f"——————————————\n\n"
-        f"{content}",
+        f"{content_text}",
         chat_id, msg_id, reply_markup=markup
     )
 
@@ -835,7 +855,10 @@ def admin_back(call):
     user_id = call.from_user.id
     if not is_admin(user_id):
         return
-    bot.delete_message(call.message.chat.id, call.message.message_id)
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except:
+        pass
     admin_panel(call.message)
 
 # ==================== АДМИН: БАЛАНС ====================
@@ -864,7 +887,7 @@ def admin_process_balance(message, target_user_id):
                 "username": "Unknown", "id": target_user_id,
                 "balance": 0, "joined": datetime.now().isoformat()
             }
-        users[str(target_user_id)]["balance"] += amount
+        users[str(target_user_id)]["balance"] = round(users[str(target_user_id)]["balance"] + amount, 2)
         save_users(users)
         bot.send_message(message.chat.id, f"Выдано {amount}$ пользователю {target_user_id}")
     except ValueError:
@@ -956,14 +979,68 @@ def admin_content(call):
     user_id = call.from_user.id
     if not is_admin(user_id):
         return
-    msg = bot.send_message(call.message.chat.id, "Введи новый контент (например: login:password):")
+
+    admin_db = load_admin_db()
+    content_list = admin_db.get("content", [])
+    if isinstance(content_list, str):
+        content_list = [content_list] if content_list.strip() else []
+
+    count = len(content_list)
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("Добавить контент", callback_data="admin_content_add"),
+        types.InlineKeyboardButton("Очистить весь контент", callback_data="admin_content_clear"),
+        types.InlineKeyboardButton("Назад", callback_data="admin_back")
+    )
+
+    bot.edit_message_text(
+        f"Управление контентом\n\n"
+        f"Сейчас в боте: {count} шт\n\n"
+        f"Добавляй по одной строке или сразу несколько (каждая строка = 1 токен).",
+        call.message.chat.id, call.message.message_id, reply_markup=markup
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_content_add")
+def admin_content_add(call):
+    user_id = call.from_user.id
+    if not is_admin(user_id):
+        return
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(types.InlineKeyboardButton("Назад", callback_data="admin_content"))
+    msg = bot.edit_message_text(
+        "Введи контент (каждая строка — отдельный токен):\n\nПример:\nlogin1:pass1\nlogin2:pass2\nlogin3:pass3",
+        call.message.chat.id, call.message.message_id, reply_markup=markup
+    )
     bot.register_next_step_handler(msg, process_content)
 
-def process_content(message):
+@bot.callback_query_handler(func=lambda call: call.data == "admin_content_clear")
+def admin_content_clear(call):
+    user_id = call.from_user.id
+    if not is_admin(user_id):
+        return
     admin_db = load_admin_db()
-    admin_db["content"] = message.text
+    admin_db["content"] = []
     save_admin_db(admin_db)
-    bot.send_message(message.chat.id, "Контент изменен")
+    bot.answer_callback_query(call.id, "Контент очищен!", show_alert=True)
+    admin_content(call)
+
+def process_content(message):
+    if not is_admin(message.from_user.id):
+        return
+    admin_db = load_admin_db()
+    content_list = admin_db.get("content", [])
+    if isinstance(content_list, str):
+        content_list = [content_list] if content_list.strip() else []
+
+    new_lines = [line.strip() for line in message.text.strip().splitlines() if line.strip()]
+    content_list.extend(new_lines)
+    admin_db["content"] = content_list
+    save_admin_db(admin_db)
+    bot.send_message(
+        message.chat.id,
+        f"Добавлено {len(new_lines)} шт.\nВсего в боте: {len(content_list)} шт."
+    )
 
 # ==================== ЗАПУСК ====================
 if __name__ == "__main__":
