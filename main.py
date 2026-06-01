@@ -252,8 +252,8 @@ def main_menu_kb():
 
 def balance_kb():
     kb = types.InlineKeyboardMarkup(row_width=1)
-    kb.add(eib(f"{em('refill')} Пополнить баланс", callback_data="refill_balance"))
-    kb.add(eib(f"{em('back')} Назад", callback_data="back_to_menu"))
+    kb.add(types.InlineKeyboardButton("Пополнить баланс", callback_data="refill_balance"))
+    kb.add(types.InlineKeyboardButton("Назад", callback_data="back_to_menu"))
     return kb
 
 def topup_amount_kb():
@@ -355,9 +355,9 @@ def show_balance_inline(chat_id, user_id, message_id=None):
 
     text = (
         f"——————————————\n"
-        f"|{em('user')} User: @{username}!\n"
-        f"|{em('id')} ID: {user_id}\n"
-        f"|{em('balance')} Баланс: {balance}$\n"
+        f'|<tg-emoji emoji-id="5906581476639513176">⭐</tg-emoji>User: @{username}!\n'
+        f'|<tg-emoji emoji-id="5445353829304387411">⭐</tg-emoji>ID: {user_id}\n'
+        f'|<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>Баланс: {balance}$\n'
         f"——————————————"
     )
 
@@ -912,15 +912,25 @@ def cb_admin_fine(call):
     new_bal = round(u["balance"] - fine, 4)
     update_user(user_id, {"balance": new_bal})
 
-    bot.send_message(
-        user_id,
-        f"‼️ <b>СМС не пришло</b> ‼️\n\n"
-        f"🟢 Номер был возвращён в сток\n\n"
-        f"🌐 Штраф: <b>{fine}$</b>",
+    # Редактируем сообщение пользователю (не отправляем новое)
+    try:
+        bot.send_message(
+            user_id,
+            f"‼️ <b>СМС не пришло</b> ‼️\n\n"
+            f"🟢 Номер был возвращён в сток\n\n"
+            f"🌐 Штраф: <b>{fine}$</b>",
+            parse_mode="HTML"
+        )
+    except:
+        pass
+
+    # Редактируем сообщение у админа — убираем кнопку штрафа
+    bot.edit_message_text(
+        f"✅ Штраф <b>{fine}$</b> применён к пользователю <code>{user_id}</code>.\n"
+        f"💰 Новый баланс юзера: <b>{new_bal}$</b>",
+        call.message.chat.id, call.message.message_id,
         parse_mode="HTML"
     )
-    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
-    bot.send_message(call.message.chat.id, f"✅ Штраф {fine}$ применён к <code>{user_id}</code>.", parse_mode="HTML")
     bot.answer_callback_query(call.id)
 
 # ==================== ADMIN PANEL CALLBACKS ====================
