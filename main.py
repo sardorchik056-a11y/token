@@ -103,12 +103,16 @@ app = Flask(__name__)
 
 @app.route(f"/webhook/{WEBHOOK_SECRET}", methods=["POST"])
 def webhook():
-    if request.headers.get("content-type") != "application/json":
-        abort(403)
-    json_data = request.get_data().decode("utf-8")
-    update = telebot.types.Update.de_json(json_data)
-    bot.process_new_updates([update])
-    return "OK", 200
+    try:
+        if request.headers.get("content-type") != "application/json":
+            abort(403)
+        json_data = request.get_data().decode("utf-8")
+        update = telebot.types.Update.de_json(json_data)
+        bot.process_new_updates([update])
+        return "OK", 200
+    except Exception as e:
+        print(f"Webhook error: {e}")
+        return "Error", 500
 
 @app.route("/", methods=["GET"])
 def index():
@@ -669,16 +673,18 @@ def process_refill(message, msg_id):
         eb("back", "Назад", callback_data="check_balance")
     )
 
-    msg = bot.edit_message_text(
+    # ИСПРАВЛЕНО: переименовал переменную с msg на sent_msg
+    sent_msg = bot.edit_message_text(
         f'<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji><b>Счет на оплату\n\n'
         f'<tg-emoji emoji-id="5224257782013769471">⭐</tg-emoji>Сумма: {amount}$\n'
         f'<tg-emoji emoji-id="5307843983102204243">⭐</tg-emoji>Метод: CryptoBot (USDT)\n\nОжидаю оплату...</b>',
         chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
     )
 
+    # ИСПРАВЛЕНО: используем sent_msg.message_id вместо msg.message_id
     thread = threading.Thread(
         target=monitor_invoice,
-        args=(invoice["invoice_id"], user_id, chat_id, msg.message_id, amount)
+        args=(invoice["invoice_id"], user_id, chat_id, sent_msg.message_id, amount)
     )
     thread.daemon = True
     thread.start()
