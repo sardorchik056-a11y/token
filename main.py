@@ -6,6 +6,8 @@ from datetime import datetime
 import requests
 import threading
 from flask import Flask, request, abort
+from collections import defaultdict
+import time
 
 # ==================== КОНФИГ ====================
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8651673506:AAHUYxGizvWIqUxV7_54PSFWDQZlJtuS6MI")
@@ -17,6 +19,23 @@ WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://token-mhyd.onrender.com")
 DB_FILE = "users_db.json"
 ADMIN_DB = "admin_db.json"
 INVOICE_DB = "invoices_db.json"
+
+# ==================== БЛОКИРОВКИ ДЛЯ ФАЙЛОВ ====================
+file_locks = {
+    DB_FILE: threading.Lock(),
+    ADMIN_DB: threading.Lock(),
+    INVOICE_DB: threading.Lock()
+}
+
+# Rate limiting
+user_last_message = defaultdict(float)
+
+def check_rate_limit(user_id, cooldown_seconds=1):
+    now = time.time()
+    if now - user_last_message[user_id] < cooldown_seconds:
+        return False
+    user_last_message[user_id] = now
+    return True
 
 # ==================== КАСТОМНЫЕ ЭМОДЗИ ====================
 E = {
@@ -50,19 +69,48 @@ def eb(key, label, **kwargs):
 
 # ==================== БД ====================
 def load_users():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r') as f:
-            return json.load(f)
+    with file_locks[DB_FILE]:
+        if os.path.exists(DB_FILE):
+            try:
+                with open(DB_FILE, 'r') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, FileNotFoundError):
+                return {}
     return {}
 
 def save_users(users):
-    with open(DB_FILE, 'w') as f:
-        json.dump(users, f, indent=2)
+    with file_locks[DB_FILE]:
+        temp_file = DB_FILE + ".tmp"
+        try:
+            with open(temp_file, 'w') as f:
+                json.dump(users, f, indent=2)
+            os.replace(temp_file, DB_FILE)
+        except Exception as e:
+            print(f"Ошибка сохранения users: {e}")
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
 
 def load_admin_db():
-    if os.path.exists(ADMIN_DB):
-        with open(ADMIN_DB, 'r') as f:
-            return json.load(f)
+    with file_locks[ADMIN_DB]:
+        if os.path.exists(ADMIN_DB):
+            try:
+                with open(ADMIN_DB, 'r') as f:
+                    data = json.load(f)
+                    defaults = {
+                        "banned_users": [],
+                        "product_price": 5,
+                        "min_purchase": 3,
+                        "tokens_in_bot": 1488,
+                        "content": [],
+                        "channels": [],
+                        "menu_sticker": None
+                    }
+                    for key, default in defaults.items():
+                        if key not in data:
+                            data[key] = default
+                    return data
+            except (json.JSONDecodeError, FileNotFoundError):
+                pass
     return {
         "banned_users": [],
         "product_price": 5,
@@ -74,18 +122,38 @@ def load_admin_db():
     }
 
 def save_admin_db(data):
-    with open(ADMIN_DB, 'w') as f:
-        json.dump(data, f, indent=2)
+    with file_locks[ADMIN_DB]:
+        temp_file = ADMIN_DB + ".tmp"
+        try:
+            with open(temp_file, 'w') as f:
+                json.dump(data, f, indent=2)
+            os.replace(temp_file, ADMIN_DB)
+        except Exception as e:
+            print(f"Ошибка сохранения admin_db: {e}")
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
 
 def load_invoices():
-    if os.path.exists(INVOICE_DB):
-        with open(INVOICE_DB, 'r') as f:
-            return json.load(f)
+    with file_locks[INVOICE_DB]:
+        if os.path.exists(INVOICE_DB):
+            try:
+                with open(INVOICE_DB, 'r') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, FileNotFoundError):
+                pass
     return {}
 
 def save_invoices(invoices):
-    with open(INVOICE_DB, 'w') as f:
-        json.dump(invoices, f, indent=2)
+    with file_locks[INVOICE_DB]:
+        temp_file = INVOICE_DB + ".tmp"
+        try:
+            with open(temp_file, 'w') as f:
+                json.dump(invoices, f, indent=2)
+            os.replace(temp_file, INVOICE_DB)
+        except Exception as e:
+            print(f"Ошибка сохранения invoices: {e}")
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
 
 def check_bot_admin_in_channel(channel_id):
     try:
@@ -96,7 +164,7 @@ def check_bot_admin_in_channel(channel_id):
         return False
 
 # ==================== БОТ ====================
-bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
+bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
 
 # ==================== FLASK ====================
 app = Flask(__name__)
@@ -108,10 +176,15 @@ def webhook():
             abort(403)
         json_data = request.get_data().decode("utf-8")
         update = telebot.types.Update.de_json(json_data)
-        bot.process_new_updates([update])
+        if update:
+            thread = threading.Thread(target=bot.process_new_updates, args=([update],))
+            thread.daemon = True
+            thread.start()
         return "OK", 200
     except Exception as e:
         print(f"Webhook error: {e}")
+        import traceback
+        traceback.print_exc()
         return "Error", 500
 
 @app.route("/", methods=["GET"])
@@ -356,6 +429,8 @@ def show_main_menu(chat_id, user_id, message_id=None):
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
+    if not check_rate_limit(user_id):
+        return
     if is_user_banned(user_id):
         return
 
@@ -370,6 +445,9 @@ def start(message):
 @bot.callback_query_handler(func=lambda call: call.data == "check_subscription")
 def check_subscription(call):
     user_id = call.from_user.id
+    if not check_rate_limit(user_id):
+        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
+        return
     if is_user_banned(user_id):
         return
 
@@ -383,6 +461,9 @@ def check_subscription(call):
 @bot.callback_query_handler(func=lambda call: call.data == "buy_token")
 def buy_token(call):
     user_id = call.from_user.id
+    if not check_rate_limit(user_id):
+        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
+        return
     if is_user_banned(user_id):
         return
 
@@ -494,6 +575,9 @@ def confirm_buy(call):
     chat_id = call.message.chat.id
     msg_id = call.message.message_id
 
+    if not check_rate_limit(user_id):
+        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
+        return
     if is_user_banned(user_id):
         return
 
@@ -565,6 +649,9 @@ def confirm_buy(call):
 @bot.callback_query_handler(func=lambda call: call.data == "check_balance")
 def check_balance(call):
     user_id = call.from_user.id
+    if not check_rate_limit(user_id):
+        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
+        return
     if is_user_banned(user_id):
         return
 
@@ -596,6 +683,9 @@ def check_balance(call):
 @bot.callback_query_handler(func=lambda call: call.data == "refill_balance")
 def refill_balance(call):
     user_id = call.from_user.id
+    if not check_rate_limit(user_id):
+        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
+        return
     if is_user_banned(user_id):
         return
 
@@ -673,7 +763,6 @@ def process_refill(message, msg_id):
         eb("back", "Назад", callback_data="check_balance")
     )
 
-    # ИСПРАВЛЕНО: переименовал переменную с msg на sent_msg
     sent_msg = bot.edit_message_text(
         f'<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji><b>Счет на оплату\n\n'
         f'<tg-emoji emoji-id="5224257782013769471">⭐</tg-emoji>Сумма: {amount}$\n'
@@ -681,7 +770,6 @@ def process_refill(message, msg_id):
         chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
     )
 
-    # ИСПРАВЛЕНО: используем sent_msg.message_id вместо msg.message_id
     thread = threading.Thread(
         target=monitor_invoice,
         args=(invoice["invoice_id"], user_id, chat_id, sent_msg.message_id, amount)
@@ -693,6 +781,9 @@ def process_refill(message, msg_id):
 @bot.callback_query_handler(func=lambda call: call.data == "rules")
 def rules(call):
     user_id = call.from_user.id
+    if not check_rate_limit(user_id):
+        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
+        return
     if is_user_banned(user_id):
         return
 
@@ -1114,7 +1205,6 @@ def broadcast_text_preview(message):
         types.InlineKeyboardButton("❌ Отмена", callback_data="admin_broadcast")
     )
 
-    # Сохраняем текст во временное хранилище
     admin_db = load_admin_db()
     admin_db["_broadcast_pending"] = {"type": "text", "text": text}
     save_admin_db(admin_db)
@@ -1212,7 +1302,6 @@ def broadcast_confirm(call):
             except Exception:
                 failed += 1
 
-        # Очищаем pending
         db = load_admin_db()
         db.pop("_broadcast_pending", None)
         save_admin_db(db)
@@ -1248,4 +1337,4 @@ if __name__ == "__main__":
     setup_webhook()
     port = int(os.environ.get("PORT", 8080))
     print(f"Бот запущен на порту {port}!")
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, threaded=True)
