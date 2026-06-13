@@ -1,4 +1,4 @@
-import telebot
+8651673506:AAHUYxGizvWIqUxV7_54PSFWDQZlJtuS6MIimport telebot
 from telebot import types
 import json
 import os
@@ -10,7 +10,7 @@ from collections import defaultdict
 import time
 
 # ==================== КОНФИГ ====================
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8651673506:AAHUYxGizvWIqUxV7_54PSFWDQZlJtuS6MI")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "аа")
 ADMIN_IDS = [8118184388, 8676390469]
 CRYPTOBOT_TOKEN = os.environ.get("CRYPTOBOT_TOKEN", "588307:AATu42lIO110AeIYEitkFgoW2s5vsV7a96n")
 SUPPORT_LINK = "https://t.me/Xeltryx"  # <-- замени на юз поддержки
