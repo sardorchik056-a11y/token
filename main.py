@@ -358,51 +358,96 @@ def invoice_poller():
 user_states = {}
 
 
+# ===================== КАСТОМНЫЕ ЭМОДЗИ =====================
+# Замени ID на свои — формат: целое число в виде строки
+EMOJI = {
+    "profile":        "5368324170671202286",  # 👤
+    "market":         "5372981976804366741",  # 🏪
+    "support":        "5373026167722876724",  # 🎧
+    "topup":          "5372914944804239028",  # 💎
+    "back":           "5373027663268018522",  # ⬅️
+    "money_5":        "5372914944804239028",  # 💵
+    "money_10":       "5372914944804239028",
+    "money_25":       "5372914944804239028",
+    "money_50":       "5372914944804239028",
+    "custom_amount":  "5368324170671202286",  # ✏️
+    "pay":            "5373026167722876724",  # 💳
+    "check":          "5372981976804366741",  # 🔄
+    "cancel":         "5373027663268018522",  # ❌
+    "buy":            "5372914944804239028",  # 🗃
+    "purchases":      "5372981976804366741",  # 📦
+    "to_market":      "5372981976804366741",  # 🏪
+    "broadcast":      "5373026167722876724",  # 📢
+    "stats":          "5368324170671202286",  # 📊
+    "add_product":    "5372914944804239028",  # ➕
+    "edit_product":   "5368324170671202286",  # 🛠
+    "topup_user":     "5373026167722876724",  # 💳
+    "bans":           "5373027663268018522",  # 🚫
+    "toggle":         "5372981976804366741",  # 🟢
+    "ban":            "5373027663268018522",  # ➕🚫
+    "unban":          "5372914944804239028",  # ➖
+    "change_price":   "5368324170671202286",  # ✏️
+    "change_name":    "5368324170671202286",  # 📝
+    "change_content": "5372981976804366741",  # 📄
+    "change_stock":   "5372981976804366741",  # 📦
+    "delete":         "5373027663268018522",  # ❌
+    "refresh":        "5372981976804366741",  # 🔄
+}
+
+def btn(text: str, emoji_key: str, **kwargs) -> types.InlineKeyboardButton:
+    """InlineKeyboardButton с icon_custom_emoji_id через прямой атрибут."""
+    b = types.InlineKeyboardButton(text, **kwargs)
+    eid = EMOJI.get(emoji_key)
+    if eid:
+        b.icon_custom_emoji_id = eid
+    return b
+
+
 # ===================== КЛАВИАТУРЫ =====================
 def kb_main():
     kb = types.InlineKeyboardMarkup(row_width=2)
     kb.add(
-        types.InlineKeyboardButton("👤  Профиль", callback_data="profile"),
-        types.InlineKeyboardButton("🏪  Маркет", callback_data="market"),
+        btn("Профиль", "profile", callback_data="profile"),
+        btn("Маркет", "market", callback_data="market"),
     )
-    kb.add(types.InlineKeyboardButton("🎧  Техподдержка", url=f"https://{SUPPORT_LINK}"))
+    kb.add(btn("Техподдержка", "support", url=f"https://{SUPPORT_LINK}"))
     return kb
 
 
 def kb_profile():
     kb = types.InlineKeyboardMarkup(row_width=1)
-    kb.add(types.InlineKeyboardButton("🪪  Пополнить баланс", callback_data="topup"))
-    kb.add(types.InlineKeyboardButton("🎧  Техподдержка", url=f"https://{SUPPORT_LINK}"))
-    kb.add(types.InlineKeyboardButton("⬅️  Назад", callback_data="back_main"))
+    kb.add(btn("Пополнить баланс", "topup", callback_data="topup"))
+    kb.add(btn("Техподдержка", "support", url=f"https://{SUPPORT_LINK}"))
+    kb.add(btn("Назад", "back", callback_data="back_main"))
     return kb
 
 
 def kb_topup():
     kb = types.InlineKeyboardMarkup(row_width=2)
     kb.add(
-        types.InlineKeyboardButton("💵  5$", callback_data="topup_5"),
-        types.InlineKeyboardButton("💵  10$", callback_data="topup_10"),
+        btn("5$", "money_5", callback_data="topup_5"),
+        btn("10$", "money_10", callback_data="topup_10"),
     )
     kb.add(
-        types.InlineKeyboardButton("💵  25$", callback_data="topup_25"),
-        types.InlineKeyboardButton("💵  50$", callback_data="topup_50"),
+        btn("25$", "money_25", callback_data="topup_25"),
+        btn("50$", "money_50", callback_data="topup_50"),
     )
-    kb.add(types.InlineKeyboardButton("✏️  Своя сумма", callback_data="topup_custom"))
-    kb.add(types.InlineKeyboardButton("⬅️  Назад", callback_data="back_profile"))
+    kb.add(btn("Своя сумма", "custom_amount", callback_data="topup_custom"))
+    kb.add(btn("Назад", "back", callback_data="back_profile"))
     return kb
 
 
 def kb_pay(pay_url):
     kb = types.InlineKeyboardMarkup(row_width=1)
-    kb.add(types.InlineKeyboardButton("💳  Оплатить через CryptoBot", url=pay_url))
-    kb.add(types.InlineKeyboardButton("🔄  Проверить оплату", callback_data="check_payment"))
-    kb.add(types.InlineKeyboardButton("❌  Отмена", callback_data="topup"))
+    kb.add(btn("Оплатить через CryptoBot", "pay", url=pay_url))
+    kb.add(btn("Проверить оплату", "check", callback_data="check_payment"))
+    kb.add(btn("Отмена", "cancel", callback_data="topup"))
     return kb
 
 
 def kb_support():
     kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("⬅️  Назад", callback_data="back_main"))
+    kb.add(btn("Назад", "back", callback_data="back_main"))
     return kb
 
 
@@ -410,87 +455,88 @@ def kb_market(group):
     kb = types.InlineKeyboardMarkup(row_width=1)
     name = group["name"]
     price = group["price"]
-    kb.add(types.InlineKeyboardButton(f"🗃  Купить 1 шт — ${price:.2f}", callback_data=f"buy_{name}_1"))
-    kb.add(types.InlineKeyboardButton(f"🗃  Купить 5 шт — ${price*5:.2f}", callback_data=f"buy_{name}_5"))
-    kb.add(types.InlineKeyboardButton(f"🗃  Купить 10 шт — ${price*10:.2f}", callback_data=f"buy_{name}_10"))
-    kb.add(types.InlineKeyboardButton("⬅️  Назад", callback_data="back_main"))
+    kb.add(btn(f"Купить 1 шт — ${price:.2f}", "buy", callback_data=f"buy_{name}_1"))
+    kb.add(btn(f"Купить 5 шт — ${price*5:.2f}", "buy", callback_data=f"buy_{name}_5"))
+    kb.add(btn(f"Купить 10 шт — ${price*10:.2f}", "buy", callback_data=f"buy_{name}_10"))
+    kb.add(btn("Назад", "back", callback_data="back_main"))
     return kb
 
 
 def kb_after_purchase():
     kb = types.InlineKeyboardMarkup(row_width=2)
     kb.add(
-        types.InlineKeyboardButton("📦  Мои покупки", callback_data="my_purchases"),
-        types.InlineKeyboardButton("⬅️  В маркет", callback_data="market"),
+        btn("Мои покупки", "purchases", callback_data="my_purchases"),
+        btn("В маркет", "to_market", callback_data="market"),
     )
     return kb
 
 
 def kb_my_purchases():
     kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("⬅️  Назад", callback_data="back_main"))
+    kb.add(btn("Назад", "back", callback_data="back_main"))
     return kb
 
 
 def kb_admin():
     kb = types.InlineKeyboardMarkup(row_width=2)
     kb.add(
-        types.InlineKeyboardButton("📢  Рассылка", callback_data="admin_broadcast"),
-        types.InlineKeyboardButton("📊  Статистика", callback_data="admin_stats"),
+        btn("Рассылка", "broadcast", callback_data="admin_broadcast"),
+        btn("Статистика", "stats", callback_data="admin_stats"),
     )
     kb.add(
-        types.InlineKeyboardButton("➕  Добавить товар", callback_data="admin_add_product"),
-        types.InlineKeyboardButton("🛠  Редакция товара", callback_data="admin_edit_product"),
+        btn("Добавить товар", "add_product", callback_data="admin_add_product"),
+        btn("Редакция товара", "edit_product", callback_data="admin_edit_product"),
     )
     kb.add(
-        types.InlineKeyboardButton("💳  Пополнить баланс", callback_data="admin_topup_user"),
-        types.InlineKeyboardButton("🚫  Баны", callback_data="admin_bans"),
+        btn("Пополнить баланс", "topup_user", callback_data="admin_topup_user"),
+        btn("Баны", "bans", callback_data="admin_bans"),
     )
-    kb.add(types.InlineKeyboardButton("🟢  Вкл/Выкл бота", callback_data="admin_toggle_status"))
+    kb.add(btn("Вкл/Выкл бота", "toggle", callback_data="admin_toggle_status"))
     return kb
 
 
 def kb_bans():
     kb = types.InlineKeyboardMarkup(row_width=2)
     kb.add(
-        types.InlineKeyboardButton("➕  Забанить", callback_data="admin_ban"),
-        types.InlineKeyboardButton("➖  Разбанить", callback_data="admin_unban"),
+        btn("Забанить", "ban", callback_data="admin_ban"),
+        btn("Разбанить", "unban", callback_data="admin_unban"),
     )
-    kb.add(types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"))
+    kb.add(btn("Назад", "back", callback_data="admin_panel"))
     return kb
 
 
 def kb_cancel_admin():
     kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("❌  Отмена", callback_data="admin_panel"))
+    kb.add(btn("Отмена", "cancel", callback_data="admin_panel"))
     return kb
 
 
 def kb_cancel_topup():
     kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("❌  Отмена", callback_data="topup"))
+    kb.add(btn("Отмена", "cancel", callback_data="topup"))
     return kb
 
 
 def kb_admin_edit():
     kb = types.InlineKeyboardMarkup(row_width=2)
     kb.add(
-        types.InlineKeyboardButton("✏️  Изменить цену", callback_data="admin_change_price"),
-        types.InlineKeyboardButton("📝  Изменить название", callback_data="admin_change_name"),
+        btn("Изменить цену", "change_price", callback_data="admin_change_price"),
+        btn("Изменить название", "change_name", callback_data="admin_change_name"),
     )
     kb.add(
-        types.InlineKeyboardButton("📄  Изменить контент", callback_data="admin_change_content"),
-        types.InlineKeyboardButton("❌  Удалить товар", callback_data="admin_delete_product"),
+        btn("Изменить контент", "change_content", callback_data="admin_change_content"),
+        btn("Изменить остаток", "change_stock", callback_data="admin_change_stock"),
     )
-    kb.add(types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"))
+    kb.add(btn("Удалить товар", "delete", callback_data="admin_delete_product"))
+    kb.add(btn("Назад", "back", callback_data="admin_panel"))
     return kb
 
 
 def kb_stats():
     kb = types.InlineKeyboardMarkup(row_width=2)
     kb.add(
-        types.InlineKeyboardButton("🔄  Обновить", callback_data="admin_stats"),
-        types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"),
+        btn("Обновить", "refresh", callback_data="admin_stats"),
+        btn("Назад", "back", callback_data="admin_panel"),
     )
     return kb
 
@@ -567,12 +613,14 @@ def text_my_purchases(user_id):
         groups[name].append((item, content))
         totals[name] += amount
     text = "<b>📦 МОИ ПОКУПКИ</b>\n\n"
+    delivery_shown = set()
     for name, entries in groups.items():
         text += f"┌ 📲 <b>{name}</b>\n"
         for item, content in entries:
             text += f"│ <code>{item}</code>\n"
-            if content:
-                text += f"│ 📄 {content}\n"
+        if entries and entries[0][1] and name not in delivery_shown:
+            text += f"│ {entries[0][1]}\n"
+            delivery_shown.add(name)
         text += f"└ 💰 Потрачено: <b>${totals[name]:.2f}</b>\n\n"
     return text.strip()
 
@@ -710,7 +758,7 @@ def on_callback(call):
         groups = get_all_products_grouped()
         if not groups:
             no_kb = types.InlineKeyboardMarkup()
-            no_kb.add(types.InlineKeyboardButton("⬅️  Назад", callback_data="back_main"))
+            no_kb.add(btn("Назад", "back", callback_data="back_main"))
             bot.edit_message_text("<b>🏪 МАРКЕТ GAFTES</b>\n\nТоваров пока нет.", cid, mid, reply_markup=no_kb)
         else:
             g = groups[0]
@@ -799,20 +847,19 @@ def on_callback(call):
         conn.close()
         deduct_balance(uid, total)
 
-        items_text = ""
-        for item, content in bought_lines:
-            items_text += f"<code>{item}</code>"
-            if content:
-                items_text += f"\n📄 {content}"
-            items_text += "\n"
+        items_text = "\n".join(f"<code>{item}</code>" for item, _ in bought_lines)
+        delivery_content = bought_lines[0][1] if bought_lines else ""
 
-        bot.edit_message_text(
+        msg_text = (
             f"<b>✅ ПОКУПКА УСПЕШНА!</b>\n\n"
             f"🗃 Товар: <b>{name}</b>\n"
             f"💰 Списано: <b>${total:.2f}</b>\n\n"
-            f"📲 <b>Ваш товар:</b>\n{items_text.strip()}",
-            cid, mid, reply_markup=kb_after_purchase()
+            f"📲 <b>Ваш товар:</b>\n{items_text}"
         )
+        if delivery_content:
+            msg_text += f"\n\n{delivery_content}"
+
+        bot.edit_message_text(msg_text, cid, mid, reply_markup=kb_after_purchase())
 
     elif data == "my_purchases":
         bot.edit_message_text(text_my_purchases(uid), cid, mid, reply_markup=kb_my_purchases())
@@ -913,6 +960,18 @@ def on_callback(call):
             cid, mid, reply_markup=kb_cancel_admin()
         )
 
+    elif data == "admin_change_stock":
+        if uid != ADMIN_ID:
+            return
+        user_states[uid] = "awaiting_change_stock"
+        bot.edit_message_text(
+            "<b>📦 ИЗМЕНЕНИЕ ОСТАТКА</b>\n\n"
+            "Формат: <code>Название | новое_количество</code>\n"
+            "Пример: <code>MAX TOKEN | 50</code>\n\n"
+            "⚠️ Лишние единицы будут удалены, если указать меньше текущего.",
+            cid, mid, reply_markup=kb_cancel_admin()
+        )
+
     elif data == "admin_delete_product":
         if uid != ADMIN_ID:
             return
@@ -969,7 +1028,7 @@ def on_text(msg):
             msg.chat.id,
             f"<b>📢 Рассылка завершена!</b>\n✅ Отправлено: <b>{sent}</b>\n❌ Ошибок: <b>{failed}</b>",
             reply_markup=types.InlineKeyboardMarkup().add(
-                types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"))
+                btn("Назад", "back", callback_data="admin_panel"))
         )
 
     # ── Добавление товара ──
@@ -1000,7 +1059,7 @@ def on_text(msg):
             msg.chat.id,
             f"<b>✅ Добавлено: {added} шт.</b>" + (f"\n❌ Неверных строк: {errors}" if errors else ""),
             reply_markup=types.InlineKeyboardMarkup().add(
-                types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"))
+                btn("Назад", "back", callback_data="admin_panel"))
         )
 
     # ── Изменить цену ──
@@ -1018,7 +1077,7 @@ def on_text(msg):
                 bot.send_message(
                     msg.chat.id, f"<b>✅ Цена «{name}» → ${new_price:.2f}</b>",
                     reply_markup=types.InlineKeyboardMarkup().add(
-                        types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"))
+                        btn("Назад", "back", callback_data="admin_panel"))
                 )
             except ValueError:
                 bot.send_message(msg.chat.id, "❌ Неверная цена.")
@@ -1038,7 +1097,7 @@ def on_text(msg):
             bot.send_message(
                 msg.chat.id, f"<b>✅ «{old_name}» → «{new_name}»</b>",
                 reply_markup=types.InlineKeyboardMarkup().add(
-                    types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"))
+                    btn("Назад", "back", callback_data="admin_panel"))
             )
         else:
             bot.send_message(msg.chat.id, "❌ Формат: старое | новое")
@@ -1057,10 +1116,62 @@ def on_text(msg):
                 msg.chat.id,
                 f"<b>✅ Контент для «{name}» обновлён!</b>\n\nПри покупке покупатель увидит:\n<i>{new_content}</i>",
                 reply_markup=types.InlineKeyboardMarkup().add(
-                    types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"))
+                    btn("Назад", "back", callback_data="admin_panel"))
             )
         else:
             bot.send_message(msg.chat.id, "❌ Формат: Название | текст")
+
+    # ── Изменить остаток ──
+    elif state == "awaiting_change_stock" and uid == ADMIN_ID:
+        parts = [p.strip() for p in text.split("|")]
+        if len(parts) == 2:
+            try:
+                name      = parts[0]
+                new_stock = int(parts[1])
+                if new_stock < 0:
+                    raise ValueError
+                conn = sqlite3.connect("gaftes.db")
+                c    = conn.cursor()
+                # Текущий остаток
+                c.execute("SELECT id FROM products WHERE name=? AND sold=0 ORDER BY id ASC", (name,))
+                current_ids = [r[0] for r in c.fetchall()]
+                current_stock = len(current_ids)
+                if new_stock < current_stock:
+                    # Удаляем лишние (с конца)
+                    to_delete = current_ids[new_stock:]
+                    conn.executemany("DELETE FROM products WHERE id=?", [(i,) for i in to_delete])
+                    diff_text = f"Удалено {current_stock - new_stock} шт."
+                elif new_stock > current_stock:
+                    # Берём шаблон из существующего товара
+                    c.execute("SELECT name, price, item, content FROM products WHERE name=? LIMIT 1", (name,))
+                    tmpl = c.fetchone()
+                    if not tmpl:
+                        bot.send_message(msg.chat.id, f"❌ Товар «{name}» не найден.")
+                        conn.close()
+                        return
+                    t_name, t_price, t_item, t_content = tmpl
+                    add_count = new_stock - current_stock
+                    for _ in range(add_count):
+                        conn.execute(
+                            "INSERT INTO products (name, price, item, content, sold) VALUES (?,?,?,?,0)",
+                            (t_name, t_price, t_item, t_content)
+                        )
+                    diff_text = f"Добавлено {add_count} шт."
+                else:
+                    diff_text = "Остаток не изменился."
+                conn.commit()
+                conn.close()
+                user_states.pop(uid, None)
+                bot.send_message(
+                    msg.chat.id,
+                    f"<b>✅ Остаток «{name}»: {new_stock} шт.</b>\n{diff_text}",
+                    reply_markup=types.InlineKeyboardMarkup().add(
+                        btn("Назад", "back", callback_data="admin_panel"))
+                )
+            except ValueError:
+                bot.send_message(msg.chat.id, "❌ Введите целое число ≥ 0.")
+        else:
+            bot.send_message(msg.chat.id, "❌ Формат: Название | количество")
 
     # ── Удалить товар ──
     elif state == "awaiting_delete_product" and uid == ADMIN_ID:
@@ -1073,7 +1184,7 @@ def on_text(msg):
         bot.send_message(
             msg.chat.id, f"<b>✅ Удалено {deleted} шт. «{text}»</b>",
             reply_markup=types.InlineKeyboardMarkup().add(
-                types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"))
+                btn("Назад", "back", callback_data="admin_panel"))
         )
 
     # ── Бан ──
@@ -1100,7 +1211,7 @@ def on_text(msg):
             msg.chat.id,
             f"<b>🚫 Пользователь <code>{target_id}</code> забанен.</b>\nПричина: {reason}",
             reply_markup=types.InlineKeyboardMarkup().add(
-                types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"))
+                btn("Назад", "back", callback_data="admin_panel"))
         )
 
     # ── Разбан ──
@@ -1112,7 +1223,7 @@ def on_text(msg):
             bot.send_message(
                 msg.chat.id, f"<b>✅ Пользователь <code>{target_id}</code> разбанен.</b>",
                 reply_markup=types.InlineKeyboardMarkup().add(
-                    types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"))
+                    btn("Назад", "back", callback_data="admin_panel"))
             )
         except ValueError:
             bot.send_message(msg.chat.id, "❌ Введите числовой ID.")
@@ -1130,7 +1241,7 @@ def on_text(msg):
                     msg.chat.id,
                     f"<b>✅ Баланс <code>{target_id}</code> пополнен на ${amount:.2f}</b>",
                     reply_markup=types.InlineKeyboardMarkup().add(
-                        types.InlineKeyboardButton("⬅️  Назад", callback_data="admin_panel"))
+                        btn("Назад", "back", callback_data="admin_panel"))
                 )
                 try:
                     bot.send_message(target_id, f"<b>💳 Ваш баланс пополнен на ${amount:.2f} администратором.</b>")
