@@ -340,11 +340,11 @@ def invoice_poller():
                     try:
                         bot.send_message(
                             user_id,
-                            f"<b>✅ Оплата получена!</b>\n\n"
-                            f"┌ 💰 Оплачено: <b>{amount:.2f}$</b>\n"
-                            f"├ 📊 Комиссия (3%): <b>{commission:.2f}$</b>\n"
-                            f"└ 👛 Зачислено: <b>{credited:.2f}$</b>\n\n"
-                            f"Ваш баланс пополнен. Приятных покупок! 🛒",
+                            f'<b><tg-emoji emoji-id="5258503720928288433">🎟</tg-emoji> Оплата получена!</b>\n\n'
+                            f'┌ <tg-emoji emoji-id="5258503720928288433">🎟</tg-emoji> Оплачено: <b>{amount:.2f}$</b>\n'
+                            f'├ <tg-emoji emoji-id="5258503720928288433">🎟</tg-emoji> Комиссия (3%): <b>{commission:.2f}$</b>\n'
+                            f'└ <tg-emoji emoji-id="5258503720928288433">🎟</tg-emoji> Зачислено: <b>{credited:.2f}$</b>\n\n'
+                            f"Ваш баланс пополнен. Приятных покупок! ",
                             reply_markup=kb_main()
                         )
                     except Exception as e:
@@ -545,11 +545,11 @@ def kb_stats():
 def text_start():
     status = get_setting("status")
     price = get_setting("price")
-    st_icon = "🟢" if status == "WORK" else "🔴"
+    st_icon = '<tg-emoji emoji-id="5416081784641168838">🎟</tg-emoji>" if status == "WORK" else "<tg-emoji emoji-id="5411225014148014586">🎟</tg-emoji>'
     return (
-        f"<b>👋 Добро пожаловать в GAFTES!</b>\n\n"
+        f'<b><tg-emoji emoji-id="5258501105293205250">🎟</tg-emoji> Добро пожаловать в GAFTES!</b>\n\n'
         f"┌ {st_icon} Статус бота: <b>{status}</b>\n"
-        f"└ 💰 Ценник: <b>{price}$</b>"
+        f'└ <tg-emoji emoji-id="5409048419211682843">🎟</tg-emoji> Ценник: <b>{price}$</b>\n\n'
     )
 
 
@@ -560,18 +560,18 @@ def text_profile(user_id):
     balance = u[3]
     spent = u[4]
     return (
-        f"<b>🪪 ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ</b>\n\n"
-        f"┌ 👤 Имя: <b>{name}</b>\n"
-        f"├ 🤖 Юзернейм: <b>{username}</b>\n"
-        f"└ ⭐️ ID: <code>{user_id}</code>\n\n"
-        f"┌ 👛 Баланс: <b>{balance:.2f}$</b>\n"
-        f"└ 📈 Потрачено всего: <b>{spent:.2f}$</b>"
+        f'<b><tg-emoji emoji-id="5879770735999717115">🎟</tg-emoji> ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ</b>\n\n'
+        f'┌ <tg-emoji emoji-id="5879770735999717115">🎟</tg-emoji> Имя: <b>{name}</b>\n'
+        f'├ <tg-emoji emoji-id="5936017305585586269">🎟</tg-emoji> Юзернейм: <b>{username}</b>\n'
+        f'└ <tg-emoji emoji-id="5776375003280838798">🎟</tg-emoji> ID: <code>{user_id}</code>\n\n'
+        f'┌ <tg-emoji emoji-id="5769403330761593044">🎟</tg-emoji> Баланс: <b>{balance:.2f}$</b>\n'
+        f'└ <tg-emoji emoji-id="5994378914636500516">🎟</tg-emoji> Потрачено всего: <b>{spent:.2f}$</b>'
     )
 
 
 def text_topup_menu():
     return (
-        "<b>💎 Пополнение через CryptoBot</b>\n"
+        '<b><tg-emoji emoji-id="5811989245761426317">🎟</tg-emoji> Пополнение через CryptoBot</b>\n\n'
         "Выберите сумму или введите свою:"
     )
 
@@ -583,13 +583,12 @@ def text_market_render(user_id, group):
     price = group["price"]
     stock = len(group["items"])
     return (
-        f"<b>🏪 МАРКЕТ GAFTES</b>\n\n"
-        f"┌ 📲 <b>{name}</b>\n"
+        f'<b><tg-emoji emoji-id="5983399041197675256">🎟</tg-emoji> МАРКЕТ GAFTES</b>\n\n'
+        f'┌ <tg-emoji emoji-id="5449407131675558756">🎟</tg-emoji> <b>{name}</b>\n'
         f"│\n"
-        f"│ 👛 Ваш баланс: <b>${balance:.2f}</b>\n"
-        f"│ 💵 Цена: <b>${price:.2f}</b>\n"
-        f"│ 📦 В наличии: <b>{stock} шт.</b>\n"
-        f"└ 🛒 Выберите количество:"
+        f'│ <tg-emoji emoji-id="5769403330761593044">🎟</tg-emoji> Ваш баланс: <b>${balance:.2f}</b>\n'
+        f'│ <tg-emoji emoji-id="5409048419211682843">🎟</tg-emoji> Цена: <b>${price:.2f}</b>\n'
+        f'└ <tg-emoji emoji-id="5776375003280838798">🎟</tg-emoji> Выберите количество:'
     )
 
 
