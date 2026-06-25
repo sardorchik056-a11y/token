@@ -548,7 +548,7 @@ def text_start():
     st_icon = '<tg-emoji emoji-id="5416081784641168838">🎟</tg-emoji>' if status == "WORK" else '<tg-emoji emoji-id="5411225014148014586">🎟</tg-emoji>'
     return (
         f'<b><tg-emoji emoji-id="5258501105293205250">🎟</tg-emoji> Добро пожаловать в GAFTES!</b>\n\n'
-        f"┌ {st_icon} Статус бота: <b>{status}</b>\n"
+        f'┌ <tg-emoji emoji-id="5776375003280838798">🎟</tg-emoji>Статус бота: <b>{status}{st_icon}</b>\n'
         f'└ <tg-emoji emoji-id="5409048419211682843">🎟</tg-emoji> Ценник: <b>{price}$</b>\n\n'
     )
 
@@ -700,12 +700,10 @@ def send_invoice(chat_id, user_id, amount, message_id=None):
     save_invoice(invoice["invoice_id"], user_id, amount, credited)
 
     text = (
-        f"<b>💎 Счёт на оплату создан!</b>\n\n"
-        f"┌ 💰 К оплате: <b>{amount:.2f}$</b>\n"
-        f"├ 📊 Комиссия (3%): <b>{commission:.2f}$</b>\n"
-        f"└ ✅ Зачислится: <b>{credited:.2f}$</b>\n\n"
-        f"Нажмите кнопку ниже для оплаты.\n"
-        f"⏳ Счёт действует <b>1 час</b>."
+        f'<b><tg-emoji emoji-id="5811989245761426317">🎟</tg-emoji> Счёт на оплату создан!</b>\n\n'
+        f'┌ <tg-emoji emoji-id="5206702193385700709">🎟</tg-emoji> К оплате: <b>{amount:.2f}$</b>\n'
+        f'├ <tg-emoji emoji-id="5994378914636500516">🎟</tg-emoji> Комиссия (3%): <b>{commission:.2f}$</b>\n'
+        f'└ <tg-emoji emoji-id="5769403330761593044">🎟</tg-emoji> Зачислится: <b>{credited:.2f}$</b>\n\n'
     )
     if message_id:
         bot.edit_message_text(text, chat_id, message_id, reply_markup=kb_pay(invoice["pay_url"]))
@@ -758,7 +756,7 @@ def on_callback(call):
         if not groups:
             no_kb = types.InlineKeyboardMarkup()
             no_kb.add(btn("Назад", "back", callback_data="back_main"))
-            bot.edit_message_text("<b>🏪 МАРКЕТ GAFTES</b>\n\nТоваров пока нет.", cid, mid, reply_markup=no_kb)
+            bot.edit_message_text('<b><tg-emoji emoji-id="5983399041197675256">🎟</tg-emoji> МАРКЕТ GAFTES</b>\n\nТоваров пока нет.', cid, mid, reply_markup=no_kb)
         else:
             g = groups[0]
             bot.edit_message_text(text_market_render(uid, g), cid, mid, reply_markup=kb_market(g))
@@ -798,10 +796,10 @@ def on_callback(call):
                 commission = round(amount - credited, 2)
                 bot.answer_callback_query(call.id, "✅ Оплата подтверждена!", show_alert=True)
                 bot.edit_message_text(
-                    f"<b>✅ Оплата получена!</b>\n\n"
-                    f"┌ 💰 Оплачено: <b>{amount:.2f}$</b>\n"
-                    f"├ 📊 Комиссия (3%): <b>{commission:.2f}$</b>\n"
-                    f"└ 👛 Зачислено: <b>{credited:.2f}$</b>",
+                    f'<b><tg-emoji emoji-id="5776375003280838798">🎟</tg-emoji> Оплата получена!</b>\n\n'
+                    f'┌ <tg-emoji emoji-id="5206702193385700709">🎟</tg-emoji> Оплачено: <b>{amount:.2f}$</b>\n'
+                    f'├ <tg-emoji emoji-id="5994378914636500516">🎟</tg-emoji> Комиссия (3%): <b>{commission:.2f}$</b>\n'
+                    f'└ <tg-emoji emoji-id="5769403330761593044">🎟</tg-emoji> Зачислено: <b>{credited:.2f}$</b>',
                     cid, mid, reply_markup=kb_profile()
                 )
             elif status == "active":
@@ -850,10 +848,10 @@ def on_callback(call):
         delivery_content = bought_lines[0][1] if bought_lines else ""
 
         msg_text = (
-            f"<b>✅ ПОКУПКА УСПЕШНА!</b>\n\n"
-            f"🗃 Товар: <b>{name}</b>\n"
-            f"💰 Списано: <b>${total:.2f}</b>\n\n"
-            f"📲 <b>Ваш товар:</b>\n{items_text}"
+            f'<b><tg-emoji emoji-id="5776375003280838798">🎟</tg-emoji> ПОКУПКА УСПЕШНА!</b>\n\n'
+            f'<tg-emoji emoji-id="5967456680940671207">🎟</tg-emoji> Товар: <b>{name}</b>\n'
+            f'<tg-emoji emoji-id="5769403330761593044">🎟</tg-emoji> Списано: <b>${total:.2f}</b>\n\n'
+            f'<tg-emoji emoji-id="5449407131675558756">🎟</tg-emoji> <b>Ваш товар:</b>\n{items_text}'
         )
         if delivery_content:
             msg_text += f"\n\n{delivery_content}"
