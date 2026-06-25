@@ -136,6 +136,16 @@ def init_db():
     c.execute("INSERT OR IGNORE INTO settings VALUES ('status', 'WORK')")
     c.execute("INSERT OR IGNORE INTO settings VALUES ('price', '5.5')")
 
+    # Миграции: добавляем колонки если их нет (для существующих БД)
+    try:
+        c.execute("ALTER TABLE products ADD COLUMN content TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        c.execute("ALTER TABLE purchases ADD COLUMN content TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -355,15 +365,14 @@ def kb_main():
         types.InlineKeyboardButton("👤  Профиль", callback_data="profile"),
         types.InlineKeyboardButton("🏪  Маркет", callback_data="market"),
     )
-    kb.add(types.InlineKeyboardButton("🎧  Техподдержка", callback_data="support"))
+    kb.add(types.InlineKeyboardButton("🎧  Техподдержка", url=f"https://{SUPPORT_LINK}"))
     return kb
 
 
 def kb_profile():
     kb = types.InlineKeyboardMarkup(row_width=1)
     kb.add(types.InlineKeyboardButton("🪪  Пополнить баланс", callback_data="topup"))
-    kb.add(types.InlineKeyboardButton("📦  Мои покупки", callback_data="my_purchases"))
-    kb.add(types.InlineKeyboardButton("🎧  Техподдержка", callback_data="support"))
+    kb.add(types.InlineKeyboardButton("🎧  Техподдержка", url=f"https://{SUPPORT_LINK}"))
     kb.add(types.InlineKeyboardButton("⬅️  Назад", callback_data="back_main"))
     return kb
 
@@ -627,32 +636,34 @@ def text_stats():
 
 
 # ===================== УТИЛИТА: создать и отправить инвойс =====================
-def send_invoice(chat_id, user_id, amount):
-    """Создаёт инвойс CryptoBot и отправляет кнопку оплаты пользователю."""
+def send_invoice(chat_id, user_id, amount, message_id=None):
+    """Создаёт инвойс CryptoBot и редактирует сообщение (или отправляет новое)."""
     commission = round(amount * 0.03, 2)
     credited   = round(amount - commission, 2)
 
     invoice = create_invoice(amount, user_id)
     if not invoice:
-        bot.send_message(
-            chat_id,
-            "❌ Ошибка создания инвойса. Попробуйте позже или обратитесь в поддержку.",
-            reply_markup=kb_topup()
-        )
+        text = "❌ Ошибка создания инвойса. Попробуйте позже или обратитесь в поддержку."
+        if message_id:
+            bot.edit_message_text(text, chat_id, message_id, reply_markup=kb_topup())
+        else:
+            bot.send_message(chat_id, text, reply_markup=kb_topup())
         return
 
     save_invoice(invoice["invoice_id"], user_id, amount, credited)
 
-    bot.send_message(
-        chat_id,
+    text = (
         f"<b>💎 Счёт на оплату создан!</b>\n\n"
         f"┌ 💰 К оплате: <b>{amount:.2f}$</b>\n"
         f"├ 📊 Комиссия (3%): <b>{commission:.2f}$</b>\n"
         f"└ ✅ Зачислится: <b>{credited:.2f}$</b>\n\n"
         f"Нажмите кнопку ниже для оплаты.\n"
-        f"⏳ Счёт действует <b>1 час</b>.",
-        reply_markup=kb_pay(invoice["pay_url"])
+        f"⏳ Счёт действует <b>1 час</b>."
     )
+    if message_id:
+        bot.edit_message_text(text, chat_id, message_id, reply_markup=kb_pay(invoice["pay_url"]))
+    else:
+        bot.send_message(chat_id, text, reply_markup=kb_pay(invoice["pay_url"]))
 
 
 # ===================== ХЭНДЛЕРЫ =====================
@@ -715,8 +726,7 @@ def on_callback(call):
     elif data in ("topup_5", "topup_10", "topup_25", "topup_50"):
         amount = float(data.split("_")[1])
         bot.answer_callback_query(call.id, "⏳ Создаём инвойс...")
-        bot.delete_message(cid, mid)
-        send_invoice(cid, uid, amount)
+        send_invoice(cid, uid, amount, mid)
         return
 
     elif data == "topup_custom":
@@ -940,7 +950,7 @@ def on_text(msg):
                 bot.send_message(msg.chat.id, "❌ Минимальная сумма — 1$")
                 return
             user_states.pop(uid, None)
-            send_invoice(msg.chat.id, uid, amount)
+            send_invoice(msg.chat.id, uid, amount, None)
         except ValueError:
             bot.send_message(msg.chat.id, "❌ Введите число. Пример: <code>15</code>")
 
