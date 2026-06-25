@@ -1,1340 +1,980 @@
-8651673506:AAHUYxGizvWIqUxV7_54PSFWDQZlJtuS6MIimport telebot
+import telebot
 from telebot import types
-import json
-import os
-from datetime import datetime
-import requests
-import threading
-from flask import Flask, request, abort
-from collections import defaultdict
-import time
+import sqlite3
+import datetime
 
-# ==================== КОНФИГ ====================
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "аа")
-ADMIN_IDS = [8118184388, 8676390469]
-CRYPTOBOT_TOKEN = os.environ.get("CRYPTOBOT_TOKEN", "588307:AATu42lIO110AeIYEitkFgoW2s5vsV7a96n")
-SUPPORT_LINK = "https://t.me/Xeltryx"  # <-- замени на юз поддержки
-WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "mysecrettoken")  # секрет для защиты вебхука
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://token-mhyd.onrender.com")
-DB_FILE = "users_db.json"
-ADMIN_DB = "admin_db.json"
-INVOICE_DB = "invoices_db.json"
+# ===================== КОНФИГ =====================
+BOT_TOKEN = "8796598287:AAFK9lvJ_T3oVC4Xr3VH0U_ArmPmY4CskSs"
+ADMIN_ID = 8118184388          # Замените на ваш Telegram ID
+ADMIN_USERNAME = "@Xeltryx"   # Замените на ваш username
+SUPPORT_USERNAME = "@Gaftes_Support"
+SUPPORT_LINK = "t.me/user"
+CRYPTOBOT_TOKEN = "582363:AALEf7JOugnrQyrkMHzH5UrO7pdOjjYnTQy"  # Токен CryptoBot
+# ==================================================
 
-# ==================== БЛОКИРОВКИ ДЛЯ ФАЙЛОВ ====================
-file_locks = {
-    DB_FILE: threading.Lock(),
-    ADMIN_DB: threading.Lock(),
-    INVOICE_DB: threading.Lock()
-}
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# Rate limiting
-user_last_message = defaultdict(float)
+# ===================== БД =====================
+def init_db():
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
 
-def check_rate_limit(user_id, cooldown_seconds=1):
-    now = time.time()
-    if now - user_last_message[user_id] < cooldown_seconds:
-        return False
-    user_last_message[user_id] = now
-    return True
-
-# ==================== КАСТОМНЫЕ ЭМОДЗИ ====================
-E = {
-    "shop":    "5307843983102204243",
-    "buy":     "5307843983102204243",
-    "balance": "6078158956188930337",
-    "rules":   "5341715473882955310",
-    "support": "5848400681416793625",
-    "token":   "5449407131675558756",
-    "back":    "6039539366177541657",
-    "confirm": "5206607081334906820",
-    "cancel":  "5210952531676504517",
-    "refill":  "6078158956188930337",
-    "channel": "5271604874419647061",
-    "check":   "5206607081334906820",
-    "pay":     "6078158956188930337",
-    "price":   "5197434882321567830",
-    "user":    "5906581476639513176",
-    "id":      "5445353829304387411",
-}
-
-def e(key):
-    return f"<tg-emoji emoji-id=\"{E[key]}\">⭐</tg-emoji>"
-
-def eb(key, label, **kwargs):
-    return types.InlineKeyboardButton(
-        text=label,
-        icon_custom_emoji_id=E[key],
-        **kwargs
-    )
-
-# ==================== БД ====================
-def load_users():
-    with file_locks[DB_FILE]:
-        if os.path.exists(DB_FILE):
-            try:
-                with open(DB_FILE, 'r') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, FileNotFoundError):
-                return {}
-    return {}
-
-def save_users(users):
-    with file_locks[DB_FILE]:
-        temp_file = DB_FILE + ".tmp"
-        try:
-            with open(temp_file, 'w') as f:
-                json.dump(users, f, indent=2)
-            os.replace(temp_file, DB_FILE)
-        except Exception as e:
-            print(f"Ошибка сохранения users: {e}")
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-
-def load_admin_db():
-    with file_locks[ADMIN_DB]:
-        if os.path.exists(ADMIN_DB):
-            try:
-                with open(ADMIN_DB, 'r') as f:
-                    data = json.load(f)
-                    defaults = {
-                        "banned_users": [],
-                        "product_price": 5,
-                        "min_purchase": 3,
-                        "tokens_in_bot": 1488,
-                        "content": [],
-                        "channels": [],
-                        "menu_sticker": None
-                    }
-                    for key, default in defaults.items():
-                        if key not in data:
-                            data[key] = default
-                    return data
-            except (json.JSONDecodeError, FileNotFoundError):
-                pass
-    return {
-        "banned_users": [],
-        "product_price": 5,
-        "min_purchase": 3,
-        "tokens_in_bot": 1488,
-        "content": [],
-        "channels": [],
-        "menu_sticker": None
-    }
-
-def save_admin_db(data):
-    with file_locks[ADMIN_DB]:
-        temp_file = ADMIN_DB + ".tmp"
-        try:
-            with open(temp_file, 'w') as f:
-                json.dump(data, f, indent=2)
-            os.replace(temp_file, ADMIN_DB)
-        except Exception as e:
-            print(f"Ошибка сохранения admin_db: {e}")
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-
-def load_invoices():
-    with file_locks[INVOICE_DB]:
-        if os.path.exists(INVOICE_DB):
-            try:
-                with open(INVOICE_DB, 'r') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, FileNotFoundError):
-                pass
-    return {}
-
-def save_invoices(invoices):
-    with file_locks[INVOICE_DB]:
-        temp_file = INVOICE_DB + ".tmp"
-        try:
-            with open(temp_file, 'w') as f:
-                json.dump(invoices, f, indent=2)
-            os.replace(temp_file, INVOICE_DB)
-        except Exception as e:
-            print(f"Ошибка сохранения invoices: {e}")
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-
-def check_bot_admin_in_channel(channel_id):
-    try:
-        chat_member = bot.get_chat_member(channel_id, bot.get_me().id)
-        return chat_member.status in ['administrator', 'creator']
-    except Exception as ex:
-        print(f"Ошибка проверки админа: {str(ex)}")
-        return False
-
-# ==================== БОТ ====================
-bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
-
-# ==================== FLASK ====================
-app = Flask(__name__)
-
-@app.route(f"/webhook/{WEBHOOK_SECRET}", methods=["POST"])
-def webhook():
-    try:
-        if request.headers.get("content-type") != "application/json":
-            abort(403)
-        json_data = request.get_data().decode("utf-8")
-        update = telebot.types.Update.de_json(json_data)
-        if update:
-            thread = threading.Thread(target=bot.process_new_updates, args=([update],))
-            thread.daemon = True
-            thread.start()
-        return "OK", 200
-    except Exception as e:
-        print(f"Webhook error: {e}")
-        import traceback
-        traceback.print_exc()
-        return "Error", 500
-
-@app.route("/", methods=["GET"])
-def index():
-    return "Bot is running!", 200
-
-# ==================== CRYPTOBOT ====================
-def create_invoice(amount_usd, user_id, description="Пополнение баланса"):
-    try:
-        headers = {
-            "Crypto-Pay-API-Token": CRYPTOBOT_TOKEN,
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "asset": "USDT",
-            "amount": str(amount_usd),
-            "currency_code": "USD",
-            "description": description,
-            "expires_in": 3600
-        }
-        response = requests.post(
-            "https://pay.crypt.bot/api/createInvoice",
-            headers=headers,
-            json=payload
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id     INTEGER PRIMARY KEY,
+            username    TEXT,
+            first_name  TEXT,
+            balance     REAL DEFAULT 0.0,
+            spent       REAL DEFAULT 0.0,
+            is_banned   INTEGER DEFAULT 0,
+            ban_reason  TEXT DEFAULT '',
+            ban_date    TEXT DEFAULT '',
+            joined      TEXT
         )
-        result = response.json()
-        if result.get("ok"):
-            invoice = result.get("result")
-            return {
-                "invoice_id": invoice.get("invoice_id"),
-                "pay_url": invoice.get("pay_url"),
-                "amount": amount_usd,
-                "user_id": user_id,
-                "created_at": datetime.now().isoformat(),
-                "paid": False
-            }
-        else:
-            print(f"CryptoBot ошибка: {result}")
-            return None
-    except Exception as ex:
-        print(f"Ошибка создания инвойса: {str(ex)}")
-        return None
+    """)
 
-def check_invoice_status(invoice_id):
-    try:
-        headers = {"Crypto-Pay-API-Token": CRYPTOBOT_TOKEN}
-        response = requests.get(
-            f"https://pay.crypt.bot/api/getInvoices?invoice_ids={invoice_id}",
-            headers=headers
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS products (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            name    TEXT,
+            price   REAL DEFAULT 5.0,
+            item    TEXT,
+            sold    INTEGER DEFAULT 0
         )
-        result = response.json()
-        if result.get("ok"):
-            invoices = result.get("result", {}).get("items", [])
-            if invoices:
-                inv = invoices[0]
-                return {
-                    "status": inv.get("status"),
-                    "amount": inv.get("amount"),
-                    "paid_amount": inv.get("paid_amount")
-                }
-        return None
-    except Exception as ex:
-        print(f"Ошибка проверки инвойса: {str(ex)}")
-        return None
+    """)
 
-def monitor_invoice(invoice_id, user_id, chat_id, message_id, amount_usd):
-    import time
-    max_checks = 1800
-    check_count = 0
-    while check_count < max_checks:
-        time.sleep(2)
-        check_count += 1
-        status_info = check_invoice_status(invoice_id)
-        if not status_info:
-            continue
-        if status_info["status"] == "paid":
-            users = load_users()
-            if str(user_id) in users:
-                users[str(user_id)]["balance"] = round(users[str(user_id)]["balance"] + amount_usd, 2)
-                save_users(users)
-            invoices = load_invoices()
-            if invoice_id in invoices:
-                invoices[invoice_id]["paid"] = True
-                save_invoices(invoices)
-            try:
-                bot.edit_message_text(
-                    f"Платеж успешно получен!\n\nВыплачено: {amount_usd}$\nБаланс пополнен на {amount_usd}$",
-                    chat_id, message_id, parse_mode="HTML"
-                )
-            except:
-                pass
-            time.sleep(3)
-            try:
-                bot.delete_message(chat_id, message_id)
-                show_main_menu(chat_id, user_id)
-            except:
-                pass
-            break
-        elif status_info["status"] == "expired":
-            try:
-                markup = types.InlineKeyboardMarkup(row_width=1)
-                markup.add(eb("back", "Назад", callback_data="check_balance"))
-                bot.edit_message_text(
-                    "Инвойс истек! Время для оплаты истекло.",
-                    chat_id, message_id, reply_markup=markup, parse_mode="HTML"
-                )
-            except:
-                pass
-            break
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS purchases (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER,
+            product_id  INTEGER,
+            item        TEXT,
+            amount      REAL,
+            date        TEXT
+        )
+    """)
 
-# ==================== ХЕЛПЕРЫ ====================
-def is_user_banned(user_id):
-    admin_db = load_admin_db()
-    return str(user_id) in admin_db["banned_users"]
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key     TEXT PRIMARY KEY,
+            value   TEXT
+        )
+    """)
 
-def is_admin(user_id):
-    return user_id in ADMIN_IDS
+    # Дефолтные настройки
+    c.execute("INSERT OR IGNORE INTO settings VALUES ('status', 'WORK')")
+    c.execute("INSERT OR IGNORE INTO settings VALUES ('price', '5.5')")
 
-def resolve_channel_id(channel_input):
-    channel_input = channel_input.strip()
-    if "t.me/" in channel_input:
-        username = channel_input.split("t.me/")[-1].strip("/").strip()
-        username = username.split("?")[0].split("/")[0]
-        return f"@{username}"
-    if channel_input.startswith("@"):
-        return channel_input
-    try:
-        return int(channel_input)
-    except ValueError:
-        return None
+    conn.commit()
+    conn.close()
 
-def get_channel_invite_url(channel_id):
-    if isinstance(channel_id, str) and channel_id.startswith("@"):
-        return f"https://t.me/{channel_id[1:]}"
-    elif isinstance(channel_id, int):
-        return f"https://t.me/c/{str(channel_id).replace('-100', '')}"
-    return None
 
-def is_subscribed_to_all(user_id):
-    admin_db = load_admin_db()
-    channels = admin_db.get("channels", [])
-    if not channels:
-        return True
-    for channel_id in channels:
-        try:
-            chat_member = bot.get_chat_member(channel_id, user_id)
-            if chat_member.status not in ['member', 'administrator', 'creator']:
-                return False
-        except:
-            return False
-    return True
+def get_setting(key):
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("SELECT value FROM settings WHERE key=?", (key,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+
+def set_setting(key, value):
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO settings VALUES (?,?)", (key, value))
+    conn.commit()
+    conn.close()
+
 
 def register_user(user):
-    users = load_users()
-    user_id = user.id
-    if str(user_id) not in users:
-        users[str(user_id)] = {
-            "username": user.username or "Unknown",
-            "id": user_id,
-            "balance": 0,
-            "joined": datetime.now().isoformat()
-        }
-        save_users(users)
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM users WHERE user_id=?", (user.id,))
+    if not c.fetchone():
+        c.execute(
+            "INSERT INTO users (user_id, username, first_name, joined) VALUES (?,?,?,?)",
+            (user.id, user.username or "", user.first_name or "", datetime.date.today().isoformat())
+        )
+        conn.commit()
+    conn.close()
 
-def send_subscription_message(chat_id):
-    admin_db = load_admin_db()
-    channels = admin_db.get("channels", [])
 
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    for i, channel in enumerate(channels, 1):
-        url = get_channel_invite_url(channel)
-        if url:
-            markup.add(eb("channel", f"{i} Канал", url=url))
-    markup.add(eb("check", "Подписался", callback_data="check_subscription"))
+def get_user(user_id):
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row  # (user_id, username, first_name, balance, spent, is_banned, ban_reason, ban_date, joined)
 
-    bot.send_message(
-        chat_id,
-        '<b><tg-emoji emoji-id="5420323339723881652">⭐</tg-emoji>Для доступа в бот нужно подписаться на канал\n\nПосле подписки нажми кнопку Подписался<tg-emoji emoji-id="5206607081334906820">⭐</tg-emoji></b>',
-        reply_markup=markup, parse_mode="HTML"
+
+def is_banned(user_id):
+    u = get_user(user_id)
+    return u and u[5] == 1
+
+
+def update_balance(user_id, delta):
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (delta, user_id))
+    conn.commit()
+    conn.close()
+
+
+def deduct_balance(user_id, amount):
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("UPDATE users SET balance = balance - ?, spent = spent + ? WHERE user_id=?",
+              (amount, amount, user_id))
+    conn.commit()
+    conn.close()
+
+
+def get_products():
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM products WHERE sold=0", )
+    rows = c.fetchall()
+    conn.close()
+    return rows  # (id, name, price, item, sold)
+
+
+def get_all_products_grouped():
+    """Возвращает товары сгруппированные по названию."""
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("SELECT DISTINCT name, price FROM products WHERE sold=0")
+    groups = c.fetchall()
+    conn.close()
+    result = []
+    for name, price in groups:
+        conn2 = sqlite3.connect("gaftes.db")
+        c2 = conn2.cursor()
+        c2.execute("SELECT id, item FROM products WHERE name=? AND sold=0", (name,))
+        items = c2.fetchall()
+        conn2.close()
+        result.append({"name": name, "price": price, "items": items})
+    return result
+
+
+def get_user_purchases(user_id):
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("""
+        SELECT p.item, pr.name, p.amount, p.date
+        FROM purchases p
+        JOIN products pr ON p.product_id = pr.id
+        WHERE p.user_id=?
+        ORDER BY p.date DESC
+    """, (user_id,))
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def get_all_users():
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM users")
+    rows = c.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+
+def get_banned_users():
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("SELECT user_id, username, ban_date, ban_reason FROM users WHERE is_banned=1")
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def ban_user(user_id, reason="Нарушение правил"):
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("UPDATE users SET is_banned=1, ban_reason=?, ban_date=? WHERE user_id=?",
+              (reason, datetime.date.today().isoformat(), user_id))
+    conn.commit()
+    conn.close()
+
+
+def unban_user(user_id):
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("UPDATE users SET is_banned=0, ban_reason='', ban_date='' WHERE user_id=?", (user_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_stats():
+    conn = sqlite3.connect("gaftes.db")
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM users")
+    users_count = c.fetchone()[0]
+    c.execute("SELECT COUNT(*), SUM(amount) FROM purchases")
+    row = c.fetchone()
+    sales_count = row[0] or 0
+    total_revenue = row[1] or 0.0
+    today = datetime.date.today().isoformat()
+    c.execute("SELECT SUM(amount) FROM purchases WHERE date LIKE ?", (today + "%",))
+    today_revenue = c.fetchone()[0] or 0.0
+    conn.close()
+    return users_count, sales_count, total_revenue, today_revenue
+
+
+# Хранилище состояний
+user_states = {}
+
+
+# ===================== КЛАВИАТУРЫ =====================
+def kb_main():
+    kb = types.InlineKeyboardMarkup(row_width=3)
+    kb.add(
+        types.InlineKeyboardButton("👤 Профиль", callback_data="profile"),
+        types.InlineKeyboardButton("🎧 Техподдержка", callback_data="support"),
+        types.InlineKeyboardButton("🏪 Маркет", callback_data="market"),
+    )
+    return kb
+
+
+def kb_profile():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("🪪 Пополнить баланс", callback_data="topup"),
+        types.InlineKeyboardButton("🎧 Техподдержка", callback_data="support"),
+    )
+    kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="back_main"))
+    return kb
+
+
+def kb_topup():
+    kb = types.InlineKeyboardMarkup(row_width=3)
+    kb.add(
+        types.InlineKeyboardButton("💵 5$", callback_data="topup_5"),
+        types.InlineKeyboardButton("💵 10$", callback_data="topup_10"),
+        types.InlineKeyboardButton("💵 25$", callback_data="topup_25"),
+    )
+    kb.add(
+        types.InlineKeyboardButton("💵 50$", callback_data="topup_50"),
+        types.InlineKeyboardButton("💵 Своя сумма", callback_data="topup_custom"),
+    )
+    kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="back_profile"))
+    return kb
+
+
+def kb_support():
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="back_main"))
+    return kb
+
+
+def kb_market(product_group):
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    name = product_group["name"]
+    price = product_group["price"]
+    kb.add(
+        types.InlineKeyboardButton(f"🗃 Купить 1 шт — ${price:.2f}", callback_data=f"buy_{name}_1"),
+        types.InlineKeyboardButton(f"🗃 Купить 5 шт — ${price * 5:.2f}", callback_data=f"buy_{name}_5"),
+        types.InlineKeyboardButton(f"🗃 Купить 10 шт — ${price * 10:.2f}", callback_data=f"buy_{name}_10"),
+    )
+    kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="back_main"))
+    return kb
+
+
+def kb_after_purchase():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("📦 Мои покупки", callback_data="my_purchases"),
+        types.InlineKeyboardButton("⬅️ В маркет", callback_data="market"),
+    )
+    return kb
+
+
+def kb_my_purchases():
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="back_main"))
+    return kb
+
+
+def kb_admin():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("📢 Рассылка", callback_data="admin_broadcast"),
+        types.InlineKeyboardButton("🛠 Редакция товара и цены", callback_data="admin_edit_product"),
+    )
+    kb.add(
+        types.InlineKeyboardButton("💳 Пополнение баланса", callback_data="admin_topup_user"),
+        types.InlineKeyboardButton("🚫 Баны", callback_data="admin_bans"),
+    )
+    kb.add(
+        types.InlineKeyboardButton("➕ Добавление товара", callback_data="admin_add_product"),
+        types.InlineKeyboardButton("📊 Статистика", callback_data="admin_stats"),
+    )
+    return kb
+
+
+def kb_bans():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("➕ Забанить", callback_data="admin_ban"),
+        types.InlineKeyboardButton("➖ Разбанить", callback_data="admin_unban"),
+    )
+    kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="admin_panel"))
+    return kb
+
+
+def kb_cancel():
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("❌ Отмена", callback_data="admin_panel"))
+    return kb
+
+
+def kb_admin_edit():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("✏️ Изменить цену", callback_data="admin_change_price"),
+        types.InlineKeyboardButton("📝 Изменить название", callback_data="admin_change_name"),
+    )
+    kb.add(types.InlineKeyboardButton("❌ Удалить товар", callback_data="admin_delete_product"))
+    kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="admin_panel"))
+    return kb
+
+
+def kb_stats():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("🔄 Обновить", callback_data="admin_stats"),
+        types.InlineKeyboardButton("⬅️ Назад", callback_data="admin_panel"),
+    )
+    return kb
+
+
+def kb_save_cancel():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("✅ Сохранить", callback_data="admin_save_product"),
+        types.InlineKeyboardButton("❌ Отмена", callback_data="admin_panel"),
+    )
+    return kb
+
+
+# ===================== ТЕКСТЫ =====================
+def text_start():
+    status = get_setting("status")
+    price = get_setting("price")
+    status_icon = "🟢" if status == "WORK" else "🔴"
+    status_text = f"WORK 🟢" if status == "WORK" else f"STOP 🔴"
+    return (
+        f"👤 Добро пожаловать в GAFTES!\n"
+        f"┌ Статус работы бота: {status_text}\n"
+        f"└ Ценник: {price}$"
     )
 
-# ==================== /getfileid ====================
-@bot.message_handler(commands=['getfileid'])
-def getfileid_cmd(message):
-    user_id = message.from_user.id
-    if not is_admin(user_id):
-        bot.send_message(message.chat.id, "Нет доступа!", parse_mode="HTML")
-        return
-    msg = bot.send_message(message.chat.id, "Кинь стикер который будет показываться перед меню:", parse_mode="HTML")
-    bot.register_next_step_handler(msg, save_sticker_file_id)
 
-def save_sticker_file_id(message):
-    user_id = message.from_user.id
-    if not is_admin(user_id):
-        return
-    if not message.sticker:
-        bot.send_message(message.chat.id, "Это не стикер! Попробуй ещё раз — /getfileid", parse_mode="HTML")
-        return
-    file_id = message.sticker.file_id
-    admin_db = load_admin_db()
-    admin_db["menu_sticker"] = file_id
-    save_admin_db(admin_db)
-    bot.send_message(message.chat.id, f"Стикер сохранён!\nfile_id: {file_id}\n\nТеперь он будет показываться перед главным меню.", parse_mode="HTML")
-
-# ==================== ГЛАВНОЕ МЕНЮ ====================
-def show_main_menu(chat_id, user_id, message_id=None):
-    users = load_users()
-    user = users.get(str(user_id), {})
-    balance = user.get("balance", 0)
-    username = user.get("username", "Unknown")
-
-    text = (
-        "<b>Kretros Shop</b>\n"
-        "——————————————\n"
-        f'|<b><tg-emoji emoji-id="5906581476639513176">⭐</tg-emoji>User: @{username}!\n'
-        f'|<tg-emoji emoji-id="5445353829304387411">⭐</tg-emoji>ID: {user_id}\n'
-        f'|<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>Баланс: {balance}$</b>\n'
-        "——————————————"
+def text_profile(user_id):
+    u = get_user(user_id)
+    name = u[2] or "—"
+    username = f"@{u[1]}" if u[1] else "—"
+    uid = u[0]
+    balance = u[3]
+    spent = u[4]
+    return (
+        f"🪪 ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ\n"
+        f"┌ 👤 Имя: {name}\n"
+        f"├ 🤖 Юзернейм: {username}\n"
+        f"└ ⭐️ ID: {uid}\n"
+        f"┌ 👛 Баланс: {balance:.2f}$\n"
+        f"└ 📈 Потрачено всего: {spent:.2f}$"
     )
 
-    markup = types.InlineKeyboardMarkup()
-    markup.add(eb("buy", "Купить Token", callback_data="buy_token"))
-    markup.add(
-        eb("balance", "Баланс", callback_data="check_balance"),
-        eb("rules", "Правила", callback_data="rules")
-    )
-    markup.add(eb("support", "Поддержка", url=SUPPORT_LINK))
 
-    if message_id:
-        bot.edit_message_text(text, chat_id, message_id, reply_markup=markup, parse_mode="HTML")
+def text_topup(amount=None):
+    base = (
+        "💎 Пополнение через CryptoBot\n"
+        "Введите сумму или выберите:\n"
+    )
+    if amount:
+        commission = round(amount * 0.03, 2)
+        credited = round(amount - commission, 2)
+        base += (
+            f"\n┌ 💰 Вы вводите: {amount:.2f}$\n"
+            f"├ 📊 Комиссия CryptoBot (3%): {commission:.2f}$\n"
+            f"└ ✅ Зачислится: {credited:.2f}$"
+        )
+    return base
+
+
+def text_support():
+    return (
+        f"🎧 ТЕХПОДДЕРЖКА GAFTES\n"
+        f"По всем вопросам пишите:\n"
+        f"👉 {SUPPORT_USERNAME}\n"
+        f"👉 {SUPPORT_LINK}"
+    )
+
+
+def text_market():
+    groups = get_all_products_grouped()
+    if not groups:
+        return "🏪 МАРКЕТ GAFTES\n\nТоваров пока нет."
+    g = groups[0]
+    u_balance = None
+    return g  # вернём объект, отрендерим снаружи
+
+
+def text_market_render(user_id, group, qty=1):
+    u = get_user(user_id)
+    balance = u[3] if u else 0.0
+    name = group["name"]
+    price = group["price"]
+    return (
+        f"🏪 МАРКЕТ GAFTES\n"
+        f"┌ 📲 {name}\n"
+        f"│\n"
+        f"│ 💵 Баланс: ${balance:.2f}\n"
+        f"│ 💵 Цена: ${price:.2f}\n"
+        f"└ Введите количество: {qty}"
+    )
+
+
+def text_my_purchases(user_id):
+    purchases = get_user_purchases(user_id)
+    if not purchases:
+        return "📦 МОИ ПОКУПКИ\n\nПокупок пока нет."
+
+    # группируем по названию
+    from collections import defaultdict
+    groups = defaultdict(list)
+    totals = defaultdict(float)
+    for item, name, amount, date in purchases:
+        groups[name].append(item)
+        totals[name] += amount
+
+    text = "📦 МОИ ПОКУПКИ\n"
+    for name, items in groups.items():
+        text += f"┌ 📲 {name}\n"
+        for it in items:
+            text += f"│ {it}\n"
+        text += f"└ 💰 Потрачено: ${totals[name]:.2f}\n\n"
+    return text.strip()
+
+
+def text_admin_panel():
+    status = get_setting("status")
+    price = get_setting("price")
+    return (
+        f"⚙️ АДМИН-ПАНЕЛЬ GAFTES\n"
+        f"┌ 👑 Админ: {ADMIN_USERNAME}\n"
+        f"├ {'🟢' if status == 'WORK' else '🔴'} Статус: {status}\n"
+        f"└ 💰 Ценник: {price}$"
+    )
+
+
+def text_bans():
+    banned = get_banned_users()
+    text = "🚫 БАНЫ\n"
+    if not banned:
+        text += "Забаненных пользователей нет.\n"
     else:
-        admin_db = load_admin_db()
-        sticker_id = admin_db.get('menu_sticker')
-        if sticker_id:
-            try:
-                bot.send_sticker(chat_id, sticker_id)
-            except:
-                pass
-        bot.send_message(chat_id, text, reply_markup=markup, parse_mode="HTML")
+        text += "Забаненные пользователи:\n"
+        for uid, username, ban_date, ban_reason in banned:
+            uname = f"@{username}" if username else str(uid)
+            text += (
+                f"┌ 👤 {uname}\n"
+                f"├ ID: {uid}\n"
+                f"├ 📅 Забанен: {ban_date}\n"
+                f"└ 📝 Причина: {ban_reason}\n\n"
+            )
+    return text.strip()
 
-# ==================== /start ====================
-@bot.message_handler(commands=['start'])
-def start(message):
-    user_id = message.from_user.id
-    if not check_rate_limit(user_id):
-        return
-    if is_user_banned(user_id):
-        return
 
-    if not is_subscribed_to_all(user_id):
-        send_subscription_message(message.chat.id)
-        return
-
-    register_user(message.from_user)
-    show_main_menu(message.chat.id, user_id)
-
-# ==================== ПРОВЕРКА ПОДПИСКИ ====================
-@bot.callback_query_handler(func=lambda call: call.data == "check_subscription")
-def check_subscription(call):
-    user_id = call.from_user.id
-    if not check_rate_limit(user_id):
-        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
-        return
-    if is_user_banned(user_id):
-        return
-
-    if is_subscribed_to_all(user_id):
-        register_user(call.from_user)
-        show_main_menu(call.message.chat.id, user_id, call.message.message_id)
+def text_edit_product():
+    groups = get_all_products_grouped()
+    text = "🛠 РЕДАКЦИЯ ТОВАРА\nТекущие товары:\n"
+    if not groups:
+        text += "Товаров нет."
     else:
-        bot.answer_callback_query(call.id, "Сначала подпишись на ВСЕ каналы!", show_alert=True)
+        for g in groups:
+            text += f"┌ 📲 {g['name']}\n│ 💰 Цена: ${g['price']:.2f}\n│\n"
+            for pid, item in g["items"]:
+                text += f"│ {item}\n"
+            text += "└\n"
+    return text.strip()
 
-# ==================== КУПИТЬ ТОКЕН ====================
-@bot.callback_query_handler(func=lambda call: call.data == "buy_token")
-def buy_token(call):
-    user_id = call.from_user.id
-    if not check_rate_limit(user_id):
-        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
-        return
-    if is_user_banned(user_id):
-        return
 
-    bot.clear_step_handler_by_chat_id(call.message.chat.id)
-
-    if not is_subscribed_to_all(user_id):
-        bot.answer_callback_query(call.id, "Сначала подпишись на канал!", show_alert=True)
-        send_subscription_message(call.message.chat.id)
-        return
-
-    admin_db = load_admin_db()
-    price = admin_db["product_price"]
-    min_purchase = admin_db["min_purchase"]
-    tokens_left = admin_db["tokens_in_bot"]
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(eb("back", "Назад", callback_data="back_to_menu"))
-
-    msg = bot.edit_message_text(
-        f'<tg-emoji emoji-id="5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
-        f"——————————————\n"
-        f'<b>Ценник: {price}<tg-emoji emoji-id="5197434882321567830">⭐</tg-emoji>\n'
-        f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id="5397916757333654639">⭐</tg-emoji>\n'
-        f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id="5386367538735104399">⭐</tg-emoji></b>\n'
-        f"——————————————\n\n"
-        f'<b>Введите количество токенов:</b>',
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=markup, parse_mode="HTML"
+def text_stats():
+    users_count, sales_count, total_revenue, today_revenue = get_stats()
+    status = get_setting("status")
+    return (
+        f"📊 СТАТИСТИКА\n"
+        f"┌ 👥 Пользователей: {users_count}\n"
+        f"├ 🛒 Продаж: {sales_count}\n"
+        f"├ 💰 Оборот: ${total_revenue:.2f}\n"
+        f"├ {'🟢' if status == 'WORK' else '🔴'} {status}\n"
+        f"└ 📅 Сегодня: +${today_revenue:.2f}"
     )
 
-    bot.register_next_step_handler(msg, process_quantity, call.message.message_id)
 
-# ==================== ВВОД КОЛИЧЕСТВА ====================
-def process_quantity(message, msg_id):
-    user_id = message.from_user.id
-    chat_id = message.chat.id
+# ===================== ХЭНДЛЕРЫ =====================
+@bot.message_handler(commands=["start"])
+def cmd_start(msg):
+    register_user(msg.from_user)
+    if is_banned(msg.from_user.id):
+        bot.send_message(msg.chat.id, "🚫 Вы заблокированы в этом боте.")
+        return
+    bot.send_message(msg.chat.id, text_start(), reply_markup=kb_main())
 
-    if is_user_banned(user_id):
+
+@bot.message_handler(commands=["admin"])
+def cmd_admin(msg):
+    if msg.from_user.id != ADMIN_ID:
+        bot.send_message(msg.chat.id, "⛔️ Нет доступа.")
+        return
+    bot.send_message(msg.chat.id, text_admin_panel(), reply_markup=kb_admin())
+
+
+# ===================== CALLBACK =====================
+@bot.callback_query_handler(func=lambda c: True)
+def on_callback(call):
+    uid = call.from_user.id
+    cid = call.message.chat.id
+    mid = call.message.message_id
+    data = call.data
+
+    if is_banned(uid) and data != "back_main":
+        bot.answer_callback_query(call.id, "🚫 Вы заблокированы.")
         return
 
-    try:
-        bot.delete_message(chat_id, message.message_id)
-    except:
-        pass
-
-    admin_db = load_admin_db()
-    text = message.text.strip() if message.text else ""
-    min_purchase = admin_db["min_purchase"]
-    price = admin_db["product_price"]
-    tokens_left = admin_db["tokens_in_bot"]
-
-    def _token_msg(extra_text):
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(eb("back", "Назад", callback_data="back_to_menu"))
-        return bot.edit_message_text(
-            f'<tg-emoji emoji-id="5449407131675558756">⭐</tg-emoji><b>TOKEN</b>\n'
-            f"——————————————\n"
-            f'<b>Ценник: {price}<tg-emoji emoji-id="5197434882321567830">⭐</tg-emoji>\n'
-            f'Мин покупка: {min_purchase} шт<tg-emoji emoji-id="5397916757333654639">⭐</tg-emoji>\n'
-            f'Кол-во в боте: {tokens_left} шт<tg-emoji emoji-id="5386367538735104399">⭐</tg-emoji></b>\n'
-            f"——————————————\n\n"
-            f'<b>{extra_text}</b>',
-            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
-        )
-
-    try:
-        quantity = int(text)
-    except ValueError:
-        msg = _token_msg("Введите число!")
-        bot.register_next_step_handler(msg, process_quantity, msg_id)
-        return
-
-    if quantity < min_purchase:
-        msg = _token_msg(f"Минимум {min_purchase}!")
-        bot.register_next_step_handler(msg, process_quantity, msg_id)
-        return
-
-    if quantity > tokens_left:
-        msg = _token_msg("Недостаточно токенов!")
-        bot.register_next_step_handler(msg, process_quantity, msg_id)
-        return
-
-    total_price = round(quantity * price, 2)
-    users = load_users()
-    user_balance = users.get(str(user_id), {}).get("balance", 0)
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        eb("confirm", "Купить", callback_data=f"confirm_buy_{quantity}"),
-        eb("cancel", "Отмена", callback_data="buy_token")
-    )
-
-    bot.edit_message_text(
-        f'<tg-emoji emoji-id="5206607081334906820">⭐</tg-emoji><b>Подтверждение!</b>\n'
-        f"——————————————\n"
-        f'<b><tg-emoji emoji-id="5226513232549664618">⭐</tg-emoji>Количество: {quantity} шт\n'
-        f'<tg-emoji emoji-id="5197434882321567830">⭐</tg-emoji>Цена за шт: {price}$\n'
-        f'<tg-emoji emoji-id="5201691993775818138">⭐</tg-emoji>Итого: {total_price}$\n'
-        f'<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>баланс: {user_balance}$</b>\n'
-        f"——————————————",
-        chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
-    )
-
-# ==================== ПОДТВЕРЖДЕНИЕ ====================
-@bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_buy_"))
-def confirm_buy(call):
-    user_id = call.from_user.id
-    chat_id = call.message.chat.id
-    msg_id = call.message.message_id
-
-    if not check_rate_limit(user_id):
-        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
-        return
-    if is_user_banned(user_id):
-        return
-
-    quantity = int(call.data.split("_")[2])
-    admin_db = load_admin_db()
-    price = admin_db["product_price"]
-    tokens_left = admin_db["tokens_in_bot"]
-    min_purchase = admin_db["min_purchase"]
-    total_price = round(quantity * price, 2)
-
-    users = load_users()
-    user_balance = users.get(str(user_id), {}).get("balance", 0)
-
-    if quantity < min_purchase or quantity > tokens_left:
-        bot.answer_callback_query(call.id, "Данные изменились, попробуй заново!", show_alert=True)
-        show_main_menu(chat_id, user_id, msg_id)
-        return
-
-    if user_balance < total_price:
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            eb("refill", "Пополнить баланс", callback_data="refill_balance"),
-            eb("cancel", "Отмена", callback_data="back_to_menu")
-        )
-        bot.edit_message_text(
-            f'<b><tg-emoji emoji-id="5210952531676504517">⭐</tg-emoji>Недостаточно средств!\n\n'
-            f'<tg-emoji emoji-id="5449683594425410231">⭐</tg-emoji>Нужно: {total_price}$\n'
-            f'<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>У вас: {user_balance}$</b>',
-            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
-        )
-        return
-
-    content_list = admin_db.get("content", [])
-    if isinstance(content_list, str):
-        content_list = [content_list] if content_list.strip() else []
-
-    if len(content_list) < quantity:
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(eb("back", "Назад", callback_data="back_to_menu"))
-        bot.edit_message_text(
-            "<b>Ошибка! Контент закончился.\n\nОбратитесь в поддержку.</b>",
-            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
-        )
-        return
-
-    users[str(user_id)]["balance"] = round(users[str(user_id)]["balance"] - total_price, 2)
-    save_users(users)
-    admin_db["tokens_in_bot"] -= quantity
-    issued_content = content_list[:quantity]
-    admin_db["content"] = content_list[quantity:]
-    save_admin_db(admin_db)
-
-    content_text = "\n".join(issued_content)
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(eb("back", "Главное меню", callback_data="back_to_menu"))
-
-    bot.edit_message_text(
-        f'<tg-emoji emoji-id="5206607081334906820">⭐</tg-emoji>Покупка успешна!\n'
-        f"——————————————\n"
-        f'<tg-emoji emoji-id="5307843983102204243">⭐</tg-emoji>Куплено: {quantity} шт\n'
-        f'<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>Потрачено: {total_price}$\n'
-        f"——————————————\n\n"
-        f"{content_text}",
-        chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
-    )
-
-# ==================== БАЛАНС ====================
-@bot.callback_query_handler(func=lambda call: call.data == "check_balance")
-def check_balance(call):
-    user_id = call.from_user.id
-    if not check_rate_limit(user_id):
-        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
-        return
-    if is_user_banned(user_id):
-        return
-
-    bot.clear_step_handler_by_chat_id(call.message.chat.id)
-
-    users = load_users()
-    user = users.get(str(user_id), {})
-    balance = user.get("balance", 0)
-    username = user.get("username", "Unknown")
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        eb("refill", "Пополнить баланс", callback_data="refill_balance"),
-        eb("back", "Назад", callback_data="back_to_menu")
-    )
-
-    bot.edit_message_text(
-        f"——————————————\n"
-        f'|<tg-emoji emoji-id="5906581476639513176">⭐</tg-emoji>User: @{username}!\n'
-        f'|<tg-emoji emoji-id="5445353829304387411">⭐</tg-emoji>ID: {user_id}\n'
-        f'|<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>Баланс: {balance}$\n'
-        f"——————————————",
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=markup, parse_mode="HTML"
-    )
-
-# ==================== ПОПОЛНИТЬ БАЛАНС ====================
-@bot.callback_query_handler(func=lambda call: call.data == "refill_balance")
-def refill_balance(call):
-    user_id = call.from_user.id
-    if not check_rate_limit(user_id):
-        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
-        return
-    if is_user_banned(user_id):
-        return
-
-    bot.clear_step_handler_by_chat_id(call.message.chat.id)
-
-    admin_db = load_admin_db()
-    min_amount = admin_db.get("product_price", 5)
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(eb("back", "Назад", callback_data="check_balance"))
-
-    msg = bot.edit_message_text(
-        f'<b><tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>Пополнение баланса\n\n'
-        f'<tg-emoji emoji-id="5307843983102204243">⭐</tg-emoji>Введите сумму от {min_amount}$:</b>',
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=markup, parse_mode="HTML"
-    )
-
-    bot.register_next_step_handler(msg, process_refill, call.message.message_id)
-
-def process_refill(message, msg_id):
-    user_id = message.from_user.id
-    chat_id = message.chat.id
-
-    if is_user_banned(user_id):
-        return
-
-    try:
-        bot.delete_message(chat_id, message.message_id)
-    except:
-        pass
-
-    admin_db = load_admin_db()
-    min_amount = admin_db.get("product_price", 5)
-    text = message.text.strip() if message.text else ""
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(eb("back", "Назад", callback_data="check_balance"))
-
-    try:
-        amount = float(text)
-    except ValueError:
-        msg = bot.edit_message_text(
-            "Пополнение баланса\n\nВведи число! Попробуй заново:",
-            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
-        )
-        bot.register_next_step_handler(msg, process_refill, msg_id)
-        return
-
-    if amount < min_amount:
-        msg = bot.edit_message_text(
-            f'<b><tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji>Пополнение баланса\n\nМинимум {min_amount}$! Введи заново:</b>',
-            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
-        )
-        bot.register_next_step_handler(msg, process_refill, msg_id)
-        return
-
-    invoice = create_invoice(amount, user_id)
-
-    if not invoice:
-        bot.edit_message_text(
-            "<b>Ошибка создания инвойса. Попробуй позже.</b>",
-            chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
-        )
-        return
-
-    invoices = load_invoices()
-    invoices[invoice["invoice_id"]] = invoice
-    save_invoices(invoices)
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        eb("pay", "Оплатить", url=invoice['pay_url']),
-        eb("back", "Назад", callback_data="check_balance")
-    )
-
-    sent_msg = bot.edit_message_text(
-        f'<tg-emoji emoji-id="6078158956188930337">⭐</tg-emoji><b>Счет на оплату\n\n'
-        f'<tg-emoji emoji-id="5224257782013769471">⭐</tg-emoji>Сумма: {amount}$\n'
-        f'<tg-emoji emoji-id="5307843983102204243">⭐</tg-emoji>Метод: CryptoBot (USDT)\n\nОжидаю оплату...</b>',
-        chat_id, msg_id, reply_markup=markup, parse_mode="HTML"
-    )
-
-    thread = threading.Thread(
-        target=monitor_invoice,
-        args=(invoice["invoice_id"], user_id, chat_id, sent_msg.message_id, amount)
-    )
-    thread.daemon = True
-    thread.start()
-
-# ==================== ПРАВИЛА ====================
-@bot.callback_query_handler(func=lambda call: call.data == "rules")
-def rules(call):
-    user_id = call.from_user.id
-    if not check_rate_limit(user_id):
-        bot.answer_callback_query(call.id, "Слишком часто! Подождите секунду.", show_alert=True)
-        return
-    if is_user_banned(user_id):
-        return
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(eb("back", "Назад", callback_data="back_to_menu"))
-
-    bot.edit_message_text(
-        '<b><tg-emoji emoji-id="5244961448525848230">⭐</tg-emoji>  Баланс с бота не выводится.\n\n'
-        '<tg-emoji emoji-id="5242293676834579345">⭐</tg-emoji>  Гарантия на токены составляет 30 минут после покупки.\n\n'
-        '<tg-emoji emoji-id="5242652525647127686">⭐</tg-emoji>  Любая попытка обмануть сервис равносильна блокировке.</b>',
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=markup, parse_mode="HTML"
-    )
-
-# ==================== НАЗАД В МЕНЮ ====================
-@bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
-def back_to_menu(call):
-    user_id = call.from_user.id
-    if is_user_banned(user_id):
-        return
-    bot.clear_step_handler_by_chat_id(call.message.chat.id)
-    show_main_menu(call.message.chat.id, user_id, call.message.message_id)
-
-# ==================== АДМИНКА ====================
-@bot.message_handler(commands=['admin'])
-def admin_panel(message):
-    user_id = message.from_user.id
-    if not is_admin(user_id):
-        bot.send_message(message.chat.id, "Нет доступа!", parse_mode="HTML")
-        return
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    users = load_users()
-    total_users = len(users)
-
-    markup.add(
-        types.InlineKeyboardButton("Управление каналами", callback_data="admin_channels"),
-        types.InlineKeyboardButton("Выдать баланс", callback_data="admin_give_balance"),
-        types.InlineKeyboardButton("Бан/Анбан", callback_data="admin_ban"),
-        types.InlineKeyboardButton("Изменить остаток", callback_data="admin_stock"),
-        types.InlineKeyboardButton("Изменить цену", callback_data="admin_price"),
-        types.InlineKeyboardButton("Мин количество", callback_data="admin_min_qty"),
-        types.InlineKeyboardButton("Изменить контент", callback_data="admin_content"),
-        types.InlineKeyboardButton(f"📢 Рассылка ({total_users} юзеров)", callback_data="admin_broadcast")
-    )
-
-    bot.send_message(message.chat.id, "Админ Панель", reply_markup=markup, parse_mode="HTML")
-
-# ==================== АДМИН: КАНАЛЫ ====================
-@bot.callback_query_handler(func=lambda call: call.data == "admin_channels")
-def admin_channels(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-
-    admin_db = load_admin_db()
-    channels = admin_db.get("channels", [])
-
-    text = "Управление Каналами\n\n"
-    if channels:
-        for idx, ch_id in enumerate(channels, 1):
-            text += f"{idx}. {ch_id}\n"
-    else:
-        text += "Каналы не добавлены\n"
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton("Добавить канал", callback_data="admin_add_channel"))
-    if channels:
-        markup.add(types.InlineKeyboardButton("Удалить канал", callback_data="admin_remove_channel"))
-    markup.add(types.InlineKeyboardButton("Назад", callback_data="admin_back"))
-
-    bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
-
-@bot.callback_query_handler(func=lambda call: call.data == "admin_add_channel")
-def admin_add_channel(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton("Назад", callback_data="admin_channels"))
-
-    msg = bot.edit_message_text(
-        "Введи ID канала, @username или ссылку t.me/...",
-        call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML"
-    )
-    bot.register_next_step_handler(msg, process_add_channel)
-
-def process_add_channel(message):
-    admin_id = message.from_user.id
-    if not is_admin(admin_id):
-        return
-
-    channel_input = message.text.strip()
-    channel_id = resolve_channel_id(channel_input)
-
-    if channel_id is None:
-        bot.send_message(message.chat.id, "Неверный формат! Введи @username, ссылку t.me/... или числовой ID.", parse_mode="HTML")
-        return
-
-    if not check_bot_admin_in_channel(channel_id):
-        bot.send_message(
-            message.chat.id,
-            f"Бот должен быть администратором в канале {channel_input}\n\nДобавь бота админом и попробуй снова!",
-            parse_mode="HTML"
-        )
-        return
-
-    admin_db = load_admin_db()
-    channels = admin_db.get("channels", [])
-
-    if channel_id not in channels:
-        channels.append(channel_id)
-        admin_db["channels"] = channels
-        save_admin_db(admin_db)
-        bot.send_message(message.chat.id, f"Канал {channel_input} добавлен!", parse_mode="HTML")
-    else:
-        bot.send_message(message.chat.id, "Канал уже в списке", parse_mode="HTML")
-
-@bot.callback_query_handler(func=lambda call: call.data == "admin_remove_channel")
-def admin_remove_channel(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-
-    admin_db = load_admin_db()
-    channels = admin_db.get("channels", [])
-
-    if not channels:
-        bot.answer_callback_query(call.id, "Нет каналов для удаления!", show_alert=True)
-        return
-
-    text = "Выбери канал для удаления:\n\n"
-    markup = types.InlineKeyboardMarkup(row_width=1)
-
-    for idx, ch_id in enumerate(channels, 1):
-        text += f"{idx}. {ch_id}\n"
-        markup.add(types.InlineKeyboardButton(f"Удалить {ch_id}", callback_data=f"remove_ch_{idx-1}"))
-    markup.add(types.InlineKeyboardButton("Назад", callback_data="admin_channels"))
-
-    bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("remove_ch_"))
-def process_remove_channel(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-
-    try:
-        idx = int(call.data.split("_")[2])
-        admin_db = load_admin_db()
-        channels = admin_db.get("channels", [])
-
-        if 0 <= idx < len(channels):
-            removed = channels.pop(idx)
-            admin_db["channels"] = channels
-            save_admin_db(admin_db)
-            bot.answer_callback_query(call.id, f"Канал {removed} удален!", show_alert=True)
-            admin_channels(call)
+    # ---- ГЛАВНОЕ МЕНЮ ----
+    if data == "back_main":
+        bot.edit_message_text(text_start(), cid, mid, reply_markup=kb_main())
+
+    elif data == "profile":
+        bot.edit_message_text(text_profile(uid), cid, mid, reply_markup=kb_profile())
+
+    elif data == "support":
+        bot.edit_message_text(text_support(), cid, mid, reply_markup=kb_support())
+
+    elif data == "market":
+        groups = get_all_products_grouped()
+        if not groups:
+            bot.edit_message_text("🏪 МАРКЕТ GAFTES\n\nТоваров пока нет.", cid, mid,
+                                  reply_markup=types.InlineKeyboardMarkup().add(
+                                      types.InlineKeyboardButton("⬅️ Назад", callback_data="back_main")))
         else:
-            bot.answer_callback_query(call.id, "Ошибка индекса!", show_alert=True)
-    except Exception as ex:
-        bot.answer_callback_query(call.id, f"Ошибка: {str(ex)}", show_alert=True)
+            g = groups[0]
+            bot.edit_message_text(text_market_render(uid, g), cid, mid, reply_markup=kb_market(g))
 
-@bot.callback_query_handler(func=lambda call: call.data == "admin_back")
-def admin_back(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-    try:
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-    except:
-        pass
-    admin_panel(call.message)
+    # ---- ПРОФИЛЬ ----
+    elif data == "back_profile":
+        bot.edit_message_text(text_profile(uid), cid, mid, reply_markup=kb_profile())
 
-# ==================== АДМИН: БАЛАНС ====================
-@bot.callback_query_handler(func=lambda call: call.data == "admin_give_balance")
-def admin_give_balance(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-    msg = bot.send_message(call.message.chat.id, "Введи ID пользователя:", parse_mode="HTML")
-    bot.register_next_step_handler(msg, admin_get_user_id_for_balance)
+    # ---- ПОПОЛНЕНИЕ ----
+    elif data == "topup":
+        bot.edit_message_text(text_topup(), cid, mid, reply_markup=kb_topup())
 
-def admin_get_user_id_for_balance(message):
-    try:
-        target_user_id = int(message.text)
-        msg = bot.send_message(message.chat.id, "Введи сумму для выдачи:", parse_mode="HTML")
-        bot.register_next_step_handler(msg, admin_process_balance, target_user_id)
-    except ValueError:
-        bot.send_message(message.chat.id, "ID должно быть числом!", parse_mode="HTML")
+    elif data in ("topup_5", "topup_10", "topup_25", "topup_50"):
+        amount = float(data.split("_")[1])
+        # Симуляция пополнения (без реального CryptoBot)
+        bot.answer_callback_query(call.id, "💳 Создаём инвойс CryptoBot...")
+        commission = round(amount * 0.03, 2)
+        credited = round(amount - commission, 2)
+        # В реальном боте тут создаётся инвойс через CryptoBot API
+        # Для демо сразу зачисляем
+        update_balance(uid, credited)
+        bot.edit_message_text(
+            f"✅ Баланс пополнен!\n"
+            f"┌ 💰 Введено: {amount:.2f}$\n"
+            f"├ 📊 Комиссия (3%): {commission:.2f}$\n"
+            f"└ ✅ Зачислено: {credited:.2f}$",
+            cid, mid,
+            reply_markup=types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("⬅️ Назад", callback_data="back_profile"))
+        )
 
-def admin_process_balance(message, target_user_id):
-    try:
-        amount = float(message.text)
-        users = load_users()
-        if str(target_user_id) not in users:
-            users[str(target_user_id)] = {
-                "username": "Unknown", "id": target_user_id,
-                "balance": 0, "joined": datetime.now().isoformat()
-            }
-        users[str(target_user_id)]["balance"] = round(users[str(target_user_id)]["balance"] + amount, 2)
-        save_users(users)
-        bot.send_message(message.chat.id, f"Выдано {amount}$ пользователю {target_user_id}", parse_mode="HTML")
-    except ValueError:
-        bot.send_message(message.chat.id, "Введи число!", parse_mode="HTML")
+    elif data == "topup_custom":
+        user_states[uid] = "awaiting_topup_amount"
+        bot.edit_message_text(
+            "💵 Введите сумму для пополнения (например: 15):",
+            cid, mid,
+            reply_markup=types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("❌ Отмена", callback_data="topup"))
+        )
 
-# ==================== АДМИН: БАН ====================
-@bot.callback_query_handler(func=lambda call: call.data == "admin_ban")
-def admin_ban(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-    msg = bot.send_message(call.message.chat.id, "Введи ID пользователя для бана/анбана:", parse_mode="HTML")
-    bot.register_next_step_handler(msg, process_ban)
+    # ---- ПОКУПКА ----
+    elif data.startswith("buy_"):
+        parts = data.split("_")
+        qty = int(parts[-1])
+        name = "_".join(parts[1:-1])
 
-def process_ban(message):
-    try:
-        target_user_id = str(int(message.text))
-        admin_db = load_admin_db()
-        if target_user_id in admin_db["banned_users"]:
-            admin_db["banned_users"].remove(target_user_id)
-            bot.send_message(message.chat.id, f"Пользователь {target_user_id} разбанен", parse_mode="HTML")
-        else:
-            admin_db["banned_users"].append(target_user_id)
-            bot.send_message(message.chat.id, f"Пользователь {target_user_id} забанен", parse_mode="HTML")
-        save_admin_db(admin_db)
-    except ValueError:
-        bot.send_message(message.chat.id, "ID должно быть числом!", parse_mode="HTML")
+        groups = get_all_products_grouped()
+        group = next((g for g in groups if g["name"] == name), None)
+        if not group:
+            bot.answer_callback_query(call.id, "Товар не найден.")
+            return
 
-# ==================== АДМИН: ОСТАТОК ====================
-@bot.callback_query_handler(func=lambda call: call.data == "admin_stock")
-def admin_stock(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-    msg = bot.send_message(call.message.chat.id, "Введи новое количество токенов:", parse_mode="HTML")
-    bot.register_next_step_handler(msg, process_stock)
+        price = group["price"]
+        total = price * qty
+        u = get_user(uid)
+        if u[3] < total:
+            bot.answer_callback_query(call.id, f"❌ Недостаточно средств. Нужно ${total:.2f}")
+            return
+        if len(group["items"]) < qty:
+            bot.answer_callback_query(call.id, "❌ Недостаточно товаров в наличии.")
+            return
 
-def process_stock(message):
-    try:
-        quantity = int(message.text)
-        admin_db = load_admin_db()
-        admin_db["tokens_in_bot"] = quantity
-        save_admin_db(admin_db)
-        bot.send_message(message.chat.id, f"Остаток изменен на {quantity}", parse_mode="HTML")
-    except ValueError:
-        bot.send_message(message.chat.id, "Введи число!", parse_mode="HTML")
+        # Берём нужное кол-во товаров
+        items_to_sell = group["items"][:qty]
+        bought_items = []
+        conn = sqlite3.connect("gaftes.db")
+        c = conn.cursor()
+        for pid, item in items_to_sell:
+            c.execute("UPDATE products SET sold=1 WHERE id=?", (pid,))
+            c.execute(
+                "INSERT INTO purchases (user_id, product_id, item, amount, date) VALUES (?,?,?,?,?)",
+                (uid, pid, item, price, datetime.datetime.now().isoformat())
+            )
+            bought_items.append(item)
+        conn.commit()
+        conn.close()
+        deduct_balance(uid, total)
 
-# ==================== АДМИН: ЦЕНА ====================
-@bot.callback_query_handler(func=lambda call: call.data == "admin_price")
-def admin_price(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-    msg = bot.send_message(call.message.chat.id, "Введи новую цену токена:", parse_mode="HTML")
-    bot.register_next_step_handler(msg, process_price)
+        items_text = "\n".join(bought_items)
+        bot.edit_message_text(
+            f"✅ ПОКУПКА УСПЕШНА!\n"
+            f"🗃 Товар: {name}\n"
+            f"💰 Списано: ${total:.2f}\n"
+            f"📲 Ваш товар:\n{items_text}",
+            cid, mid,
+            reply_markup=kb_after_purchase()
+        )
 
-def process_price(message):
-    try:
-        price = float(message.text)
-        admin_db = load_admin_db()
-        admin_db["product_price"] = price
-        save_admin_db(admin_db)
-        bot.send_message(message.chat.id, f"Цена изменена на {price}$", parse_mode="HTML")
-    except ValueError:
-        bot.send_message(message.chat.id, "Введи число!", parse_mode="HTML")
+    elif data == "my_purchases":
+        bot.edit_message_text(text_my_purchases(uid), cid, mid, reply_markup=kb_my_purchases())
 
-# ==================== АДМИН: МИН КОЛ-ВО ====================
-@bot.callback_query_handler(func=lambda call: call.data == "admin_min_qty")
-def admin_min_qty(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-    msg = bot.send_message(call.message.chat.id, "Введи минимальное количество покупки:", parse_mode="HTML")
-    bot.register_next_step_handler(msg, process_min_qty)
+    # ---- АДМИН-ПАНЕЛЬ ----
+    elif data == "admin_panel":
+        if uid != ADMIN_ID:
+            bot.answer_callback_query(call.id, "⛔️")
+            return
+        user_states.pop(uid, None)
+        bot.edit_message_text(text_admin_panel(), cid, mid, reply_markup=kb_admin())
 
-def process_min_qty(message):
-    try:
-        min_qty = int(message.text)
-        admin_db = load_admin_db()
-        admin_db["min_purchase"] = min_qty
-        save_admin_db(admin_db)
-        bot.send_message(message.chat.id, f"Минимум изменено на {min_qty}", parse_mode="HTML")
-    except ValueError:
-        bot.send_message(message.chat.id, "Введи число!", parse_mode="HTML")
+    elif data == "admin_stats":
+        if uid != ADMIN_ID:
+            return
+        bot.edit_message_text(text_stats(), cid, mid, reply_markup=kb_stats())
 
-# ==================== АДМИН: КОНТЕНТ ====================
-@bot.callback_query_handler(func=lambda call: call.data == "admin_content")
-def admin_content(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
+    elif data == "admin_bans":
+        if uid != ADMIN_ID:
+            return
+        bot.edit_message_text(text_bans(), cid, mid, reply_markup=kb_bans())
 
-    admin_db = load_admin_db()
-    content_list = admin_db.get("content", [])
-    if isinstance(content_list, str):
-        content_list = [content_list] if content_list.strip() else []
+    elif data == "admin_ban":
+        if uid != ADMIN_ID:
+            return
+        user_states[uid] = "awaiting_ban_id"
+        bot.edit_message_text(
+            "🚫 Введите ID или @username пользователя для бана\n(и причину через | )\nПример: 123456789 | Спам",
+            cid, mid, reply_markup=kb_cancel()
+        )
 
-    count = len(content_list)
+    elif data == "admin_unban":
+        if uid != ADMIN_ID:
+            return
+        user_states[uid] = "awaiting_unban_id"
+        bot.edit_message_text(
+            "✅ Введите ID пользователя для разбана:",
+            cid, mid, reply_markup=kb_cancel()
+        )
 
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("Добавить контент", callback_data="admin_content_add"),
-        types.InlineKeyboardButton("Очистить весь контент", callback_data="admin_content_clear"),
-        types.InlineKeyboardButton("Назад", callback_data="admin_back")
-    )
+    elif data == "admin_broadcast":
+        if uid != ADMIN_ID:
+            return
+        user_states[uid] = "awaiting_broadcast"
+        bot.edit_message_text(
+            "📢 РАССЫЛКА\nСообщение будет отправлено всем пользователям.\nВведите текст рассылки:",
+            cid, mid, reply_markup=kb_cancel()
+        )
 
-    bot.edit_message_text(
-        f"Управление контентом\n\n"
-        f"Сейчас в боте: {count} шт\n\n"
-        f"Добавляй по одной строке или сразу несколько (каждая строка = 1 токен).",
-        call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML"
-    )
+    elif data == "admin_add_product":
+        if uid != ADMIN_ID:
+            return
+        user_states[uid] = "awaiting_new_product"
+        bot.edit_message_text(
+            "➕ ДОБАВЛЕНИЕ ТОВАРА\nНапишите каждый товар с новой строки:\nформат: название | товар\n\nПример:\n7996 | лолкелдв\n1234 | другой товар\n5678 | ещё товар",
+            cid, mid, reply_markup=kb_save_cancel()
+        )
 
-@bot.callback_query_handler(func=lambda call: call.data == "admin_content_add")
-def admin_content_add(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton("Назад", callback_data="admin_content"))
-    msg = bot.edit_message_text(
-        "Введи контент (каждая строка — отдельный токен):\n\nПример:\nlogin1:pass1\nlogin2:pass2\nlogin3:pass3",
-        call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML"
-    )
-    bot.register_next_step_handler(msg, process_content)
+    elif data == "admin_save_product":
+        if uid != ADMIN_ID:
+            return
+        state = user_states.get(uid)
+        if state != "awaiting_new_product":
+            bot.answer_callback_query(call.id, "Сначала введите данные товара.")
+            return
+        # Данные уже сохранены в тексте сообщения — просто сообщаем
+        bot.answer_callback_query(call.id, "Введите товары текстом в чат, затем нажмите Сохранить.")
 
-@bot.callback_query_handler(func=lambda call: call.data == "admin_content_clear")
-def admin_content_clear(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-    admin_db = load_admin_db()
-    admin_db["content"] = []
-    save_admin_db(admin_db)
-    bot.answer_callback_query(call.id, "Контент очищен!", show_alert=True)
-    admin_content(call)
+    elif data == "admin_edit_product":
+        if uid != ADMIN_ID:
+            return
+        bot.edit_message_text(text_edit_product(), cid, mid, reply_markup=kb_admin_edit())
 
-def process_content(message):
-    if not is_admin(message.from_user.id):
-        return
-    admin_db = load_admin_db()
-    content_list = admin_db.get("content", [])
-    if isinstance(content_list, str):
-        content_list = [content_list] if content_list.strip() else []
+    elif data == "admin_change_price":
+        if uid != ADMIN_ID:
+            return
+        user_states[uid] = "awaiting_new_price"
+        bot.edit_message_text(
+            "✏️ Введите новую цену для товара (например: MAX TOKEN | 7.50):",
+            cid, mid, reply_markup=kb_cancel()
+        )
 
-    new_lines = [line.strip() for line in message.text.strip().splitlines() if line.strip()]
-    content_list.extend(new_lines)
-    admin_db["content"] = content_list
-    save_admin_db(admin_db)
-    bot.send_message(
-        message.chat.id,
-        f"Добавлено {len(new_lines)} шт.\nВсего в боте: {len(content_list)} шт.",
-        parse_mode="HTML"
-    )
+    elif data == "admin_change_name":
+        if uid != ADMIN_ID:
+            return
+        user_states[uid] = "awaiting_new_name"
+        bot.edit_message_text(
+            "📝 Введите: старое_название | новое_название\nПример: MAX TOKEN | PREMIUM TOKEN",
+            cid, mid, reply_markup=kb_cancel()
+        )
 
-# ==================== АДМИН: РАССЫЛКА ====================
-@bot.callback_query_handler(func=lambda call: call.data == "admin_broadcast")
-def admin_broadcast_menu(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
+    elif data == "admin_delete_product":
+        if uid != ADMIN_ID:
+            return
+        user_states[uid] = "awaiting_delete_product"
+        bot.edit_message_text(
+            "❌ Введите название товара для удаления:",
+            cid, mid, reply_markup=kb_cancel()
+        )
 
-    users = load_users()
-    total_users = len(users)
+    elif data == "admin_topup_user":
+        if uid != ADMIN_ID:
+            return
+        user_states[uid] = "awaiting_topup_user"
+        bot.edit_message_text(
+            "💳 Введите: ID_пользователя | сумма\nПример: 123456789 | 10.00",
+            cid, mid, reply_markup=kb_cancel()
+        )
 
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("✉️ Написать текст", callback_data="broadcast_text"),
-        types.InlineKeyboardButton("🖼 Фото + текст", callback_data="broadcast_photo"),
-        types.InlineKeyboardButton("Назад", callback_data="admin_back")
-    )
-
-    bot.edit_message_text(
-        f"<b>📢 Рассылка</b>\n\n"
-        f"Пользователей в базе: <b>{total_users}</b>\n\n"
-        f"Выбери тип рассылки:",
-        call.message.chat.id, call.message.message_id,
-        reply_markup=markup, parse_mode="HTML"
-    )
+    bot.answer_callback_query(call.id)
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "broadcast_text")
-def broadcast_text_start(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
+# ===================== ТЕКСТОВЫЕ СООБЩЕНИЯ (состояния) =====================
+@bot.message_handler(func=lambda m: True, content_types=["text"])
+def on_text(msg):
+    uid = msg.from_user.id
+    text = msg.text.strip()
+    state = user_states.get(uid)
+
+    if is_banned(uid):
+        bot.send_message(msg.chat.id, "🚫 Вы заблокированы.")
         return
 
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("Отмена", callback_data="admin_broadcast"))
+    # --- Пополнение своя сумма ---
+    if state == "awaiting_topup_amount":
+        try:
+            amount = float(text.replace(",", "."))
+            if amount <= 0:
+                raise ValueError
+            commission = round(amount * 0.03, 2)
+            credited = round(amount - commission, 2)
+            # Симуляция зачисления
+            update_balance(uid, credited)
+            user_states.pop(uid, None)
+            bot.send_message(
+                msg.chat.id,
+                f"✅ Баланс пополнен!\n"
+                f"┌ 💰 Введено: {amount:.2f}$\n"
+                f"├ 📊 Комиссия (3%): {commission:.2f}$\n"
+                f"└ ✅ Зачислено: {credited:.2f}$",
+                reply_markup=types.InlineKeyboardMarkup().add(
+                    types.InlineKeyboardButton("⬅️ Профиль", callback_data="profile"))
+            )
+        except ValueError:
+            bot.send_message(msg.chat.id, "❌ Введите корректную сумму (число).")
 
-    msg = bot.edit_message_text(
-        "<b>📢 Рассылка — Текст</b>\n\n"
-        "Напиши текст для рассылки.\n"
-        "Поддерживается HTML-разметка (<b>жирный</b>, <i>курсив</i>, <code>код</code>):",
-        call.message.chat.id, call.message.message_id,
-        reply_markup=markup, parse_mode="HTML"
-    )
-    bot.register_next_step_handler(msg, broadcast_text_preview)
-
-
-def broadcast_text_preview(message):
-    if not is_admin(message.from_user.id):
-        return
-
-    text = message.text
-    if not text:
-        bot.send_message(message.chat.id, "Текст не может быть пустым!", parse_mode="HTML")
-        return
-
-    users = load_users()
-    total_users = len(users)
-
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        types.InlineKeyboardButton("✅ Разослать", callback_data=f"broadcast_confirm_text"),
-        types.InlineKeyboardButton("❌ Отмена", callback_data="admin_broadcast")
-    )
-
-    admin_db = load_admin_db()
-    admin_db["_broadcast_pending"] = {"type": "text", "text": text}
-    save_admin_db(admin_db)
-
-    bot.send_message(
-        message.chat.id,
-        f"<b>Предпросмотр рассылки:</b>\n\n{text}\n\n"
-        f"——————————————\n"
-        f"Будет отправлено: <b>{total_users}</b> пользователям",
-        reply_markup=markup, parse_mode="HTML"
-    )
-
-
-@bot.callback_query_handler(func=lambda call: call.data == "broadcast_photo")
-def broadcast_photo_start(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("Отмена", callback_data="admin_broadcast"))
-
-    msg = bot.edit_message_text(
-        "<b>📢 Рассылка — Фото + текст</b>\n\n"
-        "Отправь фото с подписью (или без):",
-        call.message.chat.id, call.message.message_id,
-        reply_markup=markup, parse_mode="HTML"
-    )
-    bot.register_next_step_handler(msg, broadcast_photo_preview)
-
-
-def broadcast_photo_preview(message):
-    if not is_admin(message.from_user.id):
-        return
-
-    if not message.photo:
-        bot.send_message(message.chat.id, "Нужно отправить фото! Попробуй снова через /admin", parse_mode="HTML")
-        return
-
-    file_id = message.photo[-1].file_id
-    caption = message.caption or ""
-
-    users = load_users()
-    total_users = len(users)
-
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        types.InlineKeyboardButton("✅ Разослать", callback_data="broadcast_confirm_photo"),
-        types.InlineKeyboardButton("❌ Отмена", callback_data="admin_broadcast")
-    )
-
-    admin_db = load_admin_db()
-    admin_db["_broadcast_pending"] = {"type": "photo", "file_id": file_id, "caption": caption}
-    save_admin_db(admin_db)
-
-    bot.send_photo(
-        message.chat.id,
-        file_id,
-        caption=f"<b>Предпросмотр рассылки:</b>\n\n{caption}\n\n"
-                f"——————————————\n"
-                f"Будет отправлено: <b>{total_users}</b> пользователям",
-        reply_markup=markup, parse_mode="HTML"
-    )
-
-
-@bot.callback_query_handler(func=lambda call: call.data in ["broadcast_confirm_text", "broadcast_confirm_photo"])
-def broadcast_confirm(call):
-    user_id = call.from_user.id
-    if not is_admin(user_id):
-        return
-
-    admin_db = load_admin_db()
-    pending = admin_db.get("_broadcast_pending")
-
-    if not pending:
-        bot.answer_callback_query(call.id, "Нет данных для рассылки!", show_alert=True)
-        return
-
-    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
-    status_msg = bot.send_message(call.message.chat.id, "📢 Рассылка запущена...", parse_mode="HTML")
-
-    def do_broadcast():
-        users = load_users()
+    # --- Рассылка ---
+    elif state == "awaiting_broadcast" and uid == ADMIN_ID:
+        all_users = get_all_users()
         sent = 0
         failed = 0
-
-        for uid_str in users:
-            uid = int(uid_str)
+        for target_id in all_users:
             try:
-                if pending["type"] == "text":
-                    bot.send_message(uid, pending["text"], parse_mode="HTML")
-                elif pending["type"] == "photo":
-                    bot.send_photo(uid, pending["file_id"], caption=pending["caption"], parse_mode="HTML")
+                bot.send_message(target_id, f"📢 Сообщение от GAFTES:\n\n{text}")
                 sent += 1
             except Exception:
                 failed += 1
+        user_states.pop(uid, None)
+        bot.send_message(
+            msg.chat.id,
+            f"📢 Рассылка завершена!\n✅ Отправлено: {sent}\n❌ Ошибок: {failed}",
+            reply_markup=types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("⬅️ Назад", callback_data="admin_panel"))
+        )
 
-        db = load_admin_db()
-        db.pop("_broadcast_pending", None)
-        save_admin_db(db)
+    # --- Добавление товара ---
+    elif state == "awaiting_new_product" and uid == ADMIN_ID:
+        lines = [l.strip() for l in text.split("\n") if "|" in l]
+        if not lines:
+            bot.send_message(msg.chat.id, "❌ Неверный формат. Пример:\nMAX TOKEN | 7996 | лолкелдв")
+            return
+        conn = sqlite3.connect("gaftes.db")
+        c = conn.cursor()
+        added = 0
+        for line in lines:
+            parts = [p.strip() for p in line.split("|", 1)]
+            if len(parts) == 2:
+                name, item = parts
+                # Берём цену из настроек
+                price = float(get_setting("price") or 5.0)
+                c.execute("INSERT INTO products (name, price, item) VALUES (?,?,?)", (name, price, item))
+                added += 1
+        conn.commit()
+        conn.close()
+        user_states.pop(uid, None)
+        bot.send_message(
+            msg.chat.id,
+            f"✅ Добавлено товаров: {added}",
+            reply_markup=types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("⬅️ Назад", callback_data="admin_panel"))
+        )
 
-        try:
-            bot.edit_message_text(
-                f"<b>✅ Рассылка завершена!</b>\n\n"
-                f"Отправлено: <b>{sent}</b>\n"
-                f"Не доставлено (заблокировали бота): <b>{failed}</b>",
-                call.message.chat.id, status_msg.message_id,
-                parse_mode="HTML"
+    # --- Изменить цену ---
+    elif state == "awaiting_new_price" and uid == ADMIN_ID:
+        parts = [p.strip() for p in text.split("|")]
+        if len(parts) == 2:
+            name, price_str = parts
+            try:
+                new_price = float(price_str.replace(",", ".").replace("$", ""))
+                conn = sqlite3.connect("gaftes.db")
+                c = conn.cursor()
+                c.execute("UPDATE products SET price=? WHERE name=?", (new_price, name))
+                conn.commit()
+                conn.close()
+                user_states.pop(uid, None)
+                bot.send_message(
+                    msg.chat.id,
+                    f"✅ Цена товара «{name}» изменена на ${new_price:.2f}",
+                    reply_markup=types.InlineKeyboardMarkup().add(
+                        types.InlineKeyboardButton("⬅️ Назад", callback_data="admin_panel"))
+                )
+            except ValueError:
+                bot.send_message(msg.chat.id, "❌ Неверная цена.")
+        else:
+            bot.send_message(msg.chat.id, "❌ Формат: Название | цена")
+
+    # --- Изменить название ---
+    elif state == "awaiting_new_name" and uid == ADMIN_ID:
+        parts = [p.strip() for p in text.split("|")]
+        if len(parts) == 2:
+            old_name, new_name = parts
+            conn = sqlite3.connect("gaftes.db")
+            c = conn.cursor()
+            c.execute("UPDATE products SET name=? WHERE name=?", (new_name, old_name))
+            conn.commit()
+            conn.close()
+            user_states.pop(uid, None)
+            bot.send_message(
+                msg.chat.id,
+                f"✅ Название изменено: «{old_name}» → «{new_name}»",
+                reply_markup=types.InlineKeyboardMarkup().add(
+                    types.InlineKeyboardButton("⬅️ Назад", callback_data="admin_panel"))
             )
-        except:
-            pass
+        else:
+            bot.send_message(msg.chat.id, "❌ Формат: старое | новое")
 
-    thread = threading.Thread(target=do_broadcast)
-    thread.daemon = True
-    thread.start()
+    # --- Удалить товар ---
+    elif state == "awaiting_delete_product" and uid == ADMIN_ID:
+        conn = sqlite3.connect("gaftes.db")
+        c = conn.cursor()
+        c.execute("DELETE FROM products WHERE name=? AND sold=0", (text,))
+        deleted = c.rowcount
+        conn.commit()
+        conn.close()
+        user_states.pop(uid, None)
+        bot.send_message(
+            msg.chat.id,
+            f"✅ Удалено {deleted} единиц товара «{text}»",
+            reply_markup=types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("⬅️ Назад", callback_data="admin_panel"))
+        )
 
+    # --- Бан ---
+    elif state == "awaiting_ban_id" and uid == ADMIN_ID:
+        parts = [p.strip() for p in text.split("|")]
+        target_input = parts[0]
+        reason = parts[1] if len(parts) > 1 else "Нарушение правил"
+        try:
+            target_id = int(target_input)
+        except ValueError:
+            # пытаемся найти по username
+            uname = target_input.lstrip("@")
+            conn = sqlite3.connect("gaftes.db")
+            c = conn.cursor()
+            c.execute("SELECT user_id FROM users WHERE username=?", (uname,))
+            row = c.fetchone()
+            conn.close()
+            if not row:
+                bot.send_message(msg.chat.id, "❌ Пользователь не найден.")
+                return
+            target_id = row[0]
+        ban_user(target_id, reason)
+        user_states.pop(uid, None)
+        bot.send_message(
+            msg.chat.id,
+            f"🚫 Пользователь {target_id} забанен.\nПричина: {reason}",
+            reply_markup=types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("⬅️ Назад", callback_data="admin_panel"))
+        )
 
-# ==================== ЗАПУСК ====================
-def setup_webhook():
-    """Устанавливает вебхук при старте"""
-    if WEBHOOK_URL:
-        webhook_full_url = f"{WEBHOOK_URL}/webhook/{WEBHOOK_SECRET}"
-        bot.remove_webhook()
-        bot.set_webhook(url=webhook_full_url)
-        print(f"Webhook установлен: {webhook_full_url}")
+    # --- Разбан ---
+    elif state == "awaiting_unban_id" and uid == ADMIN_ID:
+        try:
+            target_id = int(text)
+            unban_user(target_id)
+            user_states.pop(uid, None)
+            bot.send_message(
+                msg.chat.id,
+                f"✅ Пользователь {target_id} разбанен.",
+                reply_markup=types.InlineKeyboardMarkup().add(
+                    types.InlineKeyboardButton("⬅️ Назад", callback_data="admin_panel"))
+            )
+        except ValueError:
+            bot.send_message(msg.chat.id, "❌ Введите числовой ID.")
+
+    # --- Пополнение баланса пользователя (админ) ---
+    elif state == "awaiting_topup_user" and uid == ADMIN_ID:
+        parts = [p.strip() for p in text.split("|")]
+        if len(parts) == 2:
+            try:
+                target_id = int(parts[0])
+                amount = float(parts[1].replace(",", ".").replace("$", ""))
+                update_balance(target_id, amount)
+                user_states.pop(uid, None)
+                bot.send_message(
+                    msg.chat.id,
+                    f"✅ Баланс пользователя {target_id} пополнен на ${amount:.2f}",
+                    reply_markup=types.InlineKeyboardMarkup().add(
+                        types.InlineKeyboardButton("⬅️ Назад", callback_data="admin_panel"))
+                )
+                try:
+                    bot.send_message(target_id, f"💳 Ваш баланс пополнен на ${amount:.2f} администратором.")
+                except Exception:
+                    pass
+            except ValueError:
+                bot.send_message(msg.chat.id, "❌ Неверный формат.")
+        else:
+            bot.send_message(msg.chat.id, "❌ Формат: ID | сумма")
+
     else:
-        print("ВНИМАНИЕ: WEBHOOK_URL не задан! Установи переменную окружения.")
+        # Нет активного состояния — показываем старт
+        bot.send_message(msg.chat.id, text_start(), reply_markup=kb_main())
 
+
+# ===================== ЗАПУСК =====================
 if __name__ == "__main__":
-    setup_webhook()
-    port = int(os.environ.get("PORT", 8080))
-    print(f"Бот запущен на порту {port}!")
-    app.run(host="0.0.0.0", port=port, threaded=True)
+    init_db()
+    print("✅ GAFTES Bot запущен...")
+    bot.infinity_polling(skip_pending=True)
