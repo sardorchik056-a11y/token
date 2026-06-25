@@ -545,7 +545,7 @@ def kb_stats():
 def text_start():
     status = get_setting("status")
     price = get_setting("price")
-    st_icon = '<tg-emoji emoji-id="5416081784641168838">🎟</tg-emoji>" if status == "WORK" else "<tg-emoji emoji-id="5411225014148014586">🎟</tg-emoji>'
+    st_icon = '<tg-emoji emoji-id="5416081784641168838">🎟</tg-emoji>' if status == "WORK" else '<tg-emoji emoji-id="5411225014148014586">🎟</tg-emoji>'
     return (
         f'<b><tg-emoji emoji-id="5258501105293205250">🎟</tg-emoji> Добро пожаловать в GAFTES!</b>\n\n'
         f"┌ {st_icon} Статус бота: <b>{status}</b>\n"
